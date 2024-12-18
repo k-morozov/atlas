@@ -1,15 +1,16 @@
-use std::cmp;
+use std::cmp::{
+    PartialOrd,    
+    Ord,
+    PartialEq,
+    Eq,
+};
 
-pub enum FieldType {
-    Null,
-    Int,
-    String,
-}
+use crate::field::{
+    Field,
+    FieldType,
+};
 
-pub struct Field {
-    field: FieldType,
-}
-
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct Row {
     fields: Vec<Field>,
 }
@@ -20,9 +21,9 @@ impl Row {
         fields.reserve(length); 
 
         for index in 0..length {
-            fields.insert(index, Field{
-                field: FieldType::Null,
-            });
+            fields.insert(
+                index, 
+                Field::new(FieldType::Null));
         }
 
         fields.shrink_to_fit();
@@ -31,18 +32,22 @@ impl Row {
             fields,
         }
     }
-}
 
-// https://doc.rust-lang.org/std/cmp/trait.Ord.html#how-can-i-implement-ord
-impl cmp::Ord for Row {
-    fn cmp(&self, other: &Row) -> std::cmp::Ordering {
-        cmp::Ordering::Equal
+    pub fn size(&self) -> usize {
+        self.fields.len()
     }
+
+    // operator []
+    // iter?
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::row::*;
+
     #[test]
-    fn check_row() {
+    fn check_row_size() {
+        let row = Row::new(3);
+        assert_eq!(row.size(), 3);
     }
 }
