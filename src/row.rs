@@ -19,22 +19,16 @@ use crate::field::{
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub struct Row {
     fields: Vec<Field>,
+    max_length: usize,
 }
 
 impl Row {
-    pub fn new(length: usize) -> Self {
+    pub fn new(max_length: usize) -> Self {
         let mut fields = Vec::<Field>::new();
-        fields.reserve(length); 
-
-        for index in 0..length {
-            fields.insert(
-                index, 
-                Field::new(FieldType::Null));
-        }
-
-        fields.shrink_to_fit();
+        fields.reserve(max_length); 
 
         Row {
+            max_length,
             fields,
         }
     }
@@ -43,8 +37,41 @@ impl Row {
         self.fields.len()
     }
 
-    pub fn iter(& self) -> impl Iterator<Item = &Field> {
+    pub fn iter(&self) -> impl Iterator<Item = &Field> {
         RowIterator::new(self)
+    }
+
+    fn push(&mut self, field: Field) {
+        if self.size() == self.max_length {
+            panic!("Try push to row more than max_length");
+        }
+        self.fields.push(field);
+    }
+
+    pub fn get(&self, index: usize) -> Option<&Field> {
+        self.fields.get(index)
+    }
+}
+
+pub struct RowBuilder {
+    row: Row,
+}
+
+impl RowBuilder {
+    pub fn new(max_length: usize) -> Self {
+        Self {
+            row: Row::new(max_length)
+        }
+    }
+
+    pub fn add_field(mut self, field: Field) -> Self {
+        self.row.push(field);
+        self
+    }
+
+    pub fn build(self) -> Result<Row, String> {
+        // @TODO error
+        Ok(self.row)
     }
 }
 
@@ -52,7 +79,7 @@ impl Index<usize> for Row {
     type Output = Field;
 
     fn index(&self, index: usize) -> &Self::Output {
-        return &self.fields.get(index).unwrap();
+        &self.fields[index]
     }
 }
 
@@ -94,15 +121,6 @@ impl<'a> IntoIterator for &'a Row {
     }
 }
 
-// impl Iterator for Row {
-//     type Item = Field;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         None
-//     } 
-// }
-
-
 #[cfg(test)]
 mod tests {
     use crate::row::*;
@@ -110,35 +128,90 @@ mod tests {
     #[test]
     fn check_size() {
         let row = Row::new(3);
-        assert_eq!(row.size(), 3);
+        assert_eq!(row.size(), 0);
     }
 
     #[test]
-    fn check_index() {
+    fn check_get() {
         let row = Row::new(3);
 
         for index in 0..3 {
-            assert_eq!(row[index], Field::new(FieldType::Null));
+            assert_eq!(row.get(index), None);
         }
     }
 
     #[test]
-    fn check_iter() {
+    #[should_panic]
+    fn check_index() {
+        let row = Row::new(2);
+        let _r = row[0];
+    }
+
+    #[test]
+    fn check_empty_iter() {
         let row = Row::new(3);
         let mut it = row.iter();
         
-        assert_eq!(*it.next().unwrap(), Field::new(FieldType::Null));
-        assert_eq!(*it.next().unwrap(), Field::new(FieldType::Null));
-        assert_eq!(*it.next().unwrap(), Field::new(FieldType::Null));
-
+        assert_eq!(it.next(), None);
         assert_eq!(it.next(), None);
     }
 
     #[test]
     fn check_iter_for() {
         let row = Row::new(3);
-        for it in &row {
-            assert_eq!(*it, Field::new(FieldType::Null));
+        for _it in &row {
+            assert_eq!(false, true);
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn check_failed_push() {
+        let mut row = Row::new(1);
+        row.push(Field::new(FieldType::Null));
+        row.push(Field::new(FieldType::Null));
+    }
+
+    #[test]
+    fn check_push() {
+        let mut row = Row::new(3);
+
+        row.push(Field::new(FieldType::Int));
+        row.push(Field::new(FieldType::String));
+        row.push(Field::new(FieldType::Null));
+        
+        assert_eq!(row[2], Field::new(FieldType::Null));
+        assert_eq!(row[1], Field::new(FieldType::String));
+        assert_eq!(row[0], Field::new(FieldType::Int));
+
+        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int));
+        assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::String));
+        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Null));
+
+        assert_eq!(row.get(3), None);
+    }
+
+    #[test]
+    fn check_build() {
+
+        let builder = RowBuilder::new(3);
+
+        let row = builder
+            .add_field(Field::new(FieldType::Int))
+            .add_field(Field::new(FieldType::String))
+            .add_field(Field::new(FieldType::Null))
+            .build()
+            .unwrap();
+        
+        
+        assert_eq!(row[2], Field::new(FieldType::Null));
+        assert_eq!(row[1], Field::new(FieldType::String));
+        assert_eq!(row[0], Field::new(FieldType::Int));
+
+        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int));
+        assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::String));
+        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Null));
+
+        assert_eq!(row.get(3), None);
     }
 }
