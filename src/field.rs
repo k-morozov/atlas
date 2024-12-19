@@ -5,14 +5,14 @@ use std::cmp::{
     Eq,
 };
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub enum FieldType {
     Null,
     Int,
     String,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Field {
     field: FieldType,
 }
