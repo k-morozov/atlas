@@ -45,6 +45,7 @@ impl MemTable {
 #[cfg(test)]
 mod tests {
     use crate::mem_table;
+    use crate::row::Row;
 
     #[test]
     fn check_sizes() {
@@ -52,5 +53,13 @@ mod tests {
         assert_eq!(mem_table.current_size(), 0);
         assert_eq!(mem_table.max_table_size(), 3);
         assert_eq!(mem_table.row_length(), 2);
+    }
+
+    #[test]
+    fn check_add_row() {
+        let row_length = 3;
+
+        let mem_table = mem_table::MemTable::new(3, row_length);
+        let row = Row::new(row_length);
     }
 }
