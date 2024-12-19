@@ -43,9 +43,9 @@ impl Row {
         self.fields.len()
     }
 
-    // pub fn iter(& self) -> impl Iterator<Item = Field> {
-    //     RowIterator::new(self)
-    // }
+    pub fn iter(& self) -> impl Iterator<Item = &Field> {
+        RowIterator::new(self)
+    }
 }
 
 impl Index<usize> for Row {
@@ -122,17 +122,17 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn check_iter() {
-    //     let row = Row::new(3);
-    //     let mut it = row.iter();
+    #[test]
+    fn check_iter() {
+        let row = Row::new(3);
+        let mut it = row.iter();
         
-    //     assert_eq!(it.next(), Some(Field::new(FieldType::Null)));
-    //     assert_eq!(it.next(), Some(Field::new(FieldType::Null)));
-    //     assert_eq!(it.next(), Some(Field::new(FieldType::Null)));
+        assert_eq!(*it.next().unwrap(), Field::new(FieldType::Null));
+        assert_eq!(*it.next().unwrap(), Field::new(FieldType::Null));
+        assert_eq!(*it.next().unwrap(), Field::new(FieldType::Null));
 
-    //     assert_eq!(it.next(), None);
-    // }
+        assert_eq!(it.next(), None);
+    }
 
     #[test]
     fn check_iter_for() {
