@@ -1,22 +1,11 @@
-use std::cmp::{
-    PartialOrd,    
-    Ord,
-    PartialEq,
-    Eq,
-};
+use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 
+use std::iter::{IntoIterator, Iterator};
 use std::ops::{Add, Index};
-use std::iter::{
-    IntoIterator,
-    Iterator,
-};
 
-use crate::field::{
-    Field,
-    FieldType,
-};
+use crate::field::{Field, FieldType};
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Row {
     fields: Vec<Field>,
     max_length: usize,
@@ -25,12 +14,9 @@ pub struct Row {
 impl Row {
     pub fn new(max_length: usize) -> Self {
         let mut fields = Vec::<Field>::new();
-        fields.reserve(max_length); 
+        fields.reserve(max_length);
 
-        Row {
-            max_length,
-            fields,
-        }
+        Row { max_length, fields }
     }
 
     pub fn size(&self) -> usize {
@@ -60,7 +46,7 @@ pub struct RowBuilder {
 impl RowBuilder {
     pub fn new(max_length: usize) -> Self {
         Self {
-            row: Row::new(max_length)
+            row: Row::new(max_length),
         }
     }
 
@@ -90,10 +76,7 @@ pub struct RowIterator<'a> {
 
 impl<'a> RowIterator<'a> {
     fn new(row: &'a Row) -> Self {
-        RowIterator {
-            pos: 0,
-            row,
-        }
+        RowIterator { pos: 0, row }
     }
 }
 
@@ -104,7 +87,7 @@ impl<'a> Iterator for RowIterator<'a> {
         if self.pos == self.row.size() {
             return None;
         }
-        
+
         let result = self.row.fields.get(self.pos)?;
         self.pos = self.pos.add(1);
 
@@ -144,14 +127,14 @@ mod tests {
     #[should_panic]
     fn check_index() {
         let row = Row::new(2);
-        let _r = row[0];
+        let _r = &row[0];
     }
 
     #[test]
     fn check_empty_iter() {
         let row = Row::new(3);
         let mut it = row.iter();
-        
+
         assert_eq!(it.next(), None);
         assert_eq!(it.next(), None);
     }
@@ -176,16 +159,22 @@ mod tests {
     fn check_push() {
         let mut row = Row::new(3);
 
-        row.push(Field::new(FieldType::Int));
-        row.push(Field::new(FieldType::String));
+        row.push(Field::new(FieldType::Int(32)));
+        row.push(Field::new(FieldType::String("test msg".to_string())));
         row.push(Field::new(FieldType::Null));
-        
-        assert_eq!(row[2], Field::new(FieldType::Null));
-        assert_eq!(row[1], Field::new(FieldType::String));
-        assert_eq!(row[0], Field::new(FieldType::Int));
 
-        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int));
-        assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::String));
+        assert_eq!(row[2], Field::new(FieldType::Null));
+        assert_eq!(
+            row[1],
+            Field::new(FieldType::String("test msg".to_string()))
+        );
+        assert_eq!(row[0], Field::new(FieldType::Int(32)));
+
+        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int(32)));
+        assert_eq!(
+            *row.get(1).unwrap(),
+            Field::new(FieldType::String("test msg".to_string()))
+        );
         assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Null));
 
         assert_eq!(row.get(3), None);
@@ -193,25 +182,29 @@ mod tests {
 
     #[test]
     fn check_build() {
-
         let builder = RowBuilder::new(3);
 
         let row = builder
-            .add_field(Field::new(FieldType::Int))
-            .add_field(Field::new(FieldType::String))
+            .add_field(Field::new(FieldType::Int(42)))
+            .add_field(Field::new(FieldType::String("test msg".to_string())))
             .add_field(Field::new(FieldType::Null))
             .build()
             .unwrap();
-        
-        
-        assert_eq!(row[2], Field::new(FieldType::Null));
-        assert_eq!(row[1], Field::new(FieldType::String));
-        assert_eq!(row[0], Field::new(FieldType::Int));
 
-        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int));
-        assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::String));
+        assert_eq!(row[2], Field::new(FieldType::Null));
+        assert_eq!(
+            row[1],
+            Field::new(FieldType::String("test msg".to_string()))
+        );
+        assert_eq!(row[0], Field::new(FieldType::Int(42)));
+
+        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int(42)));
+        assert_eq!(
+            *row.get(1).unwrap(),
+            Field::new(FieldType::String("test msg".to_string()))
+        );
         assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Null));
 
-        assert_eq!(row.get(3), None);
+        assert!(row.get(3).is_none());
     }
 }
