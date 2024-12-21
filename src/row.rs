@@ -70,8 +70,8 @@ impl Index<usize> for Row {
 }
 
 pub struct RowIterator<'a> {
-    pos: usize,
     row: &'a Row,
+    pos: usize,
 }
 
 impl<'a> RowIterator<'a> {

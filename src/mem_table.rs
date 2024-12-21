@@ -1,4 +1,5 @@
 use crate::row::Row;
+use std::iter::IntoIterator;
 
 struct MemTable {
     rows: Vec<Row>,
@@ -40,6 +41,41 @@ impl MemTable {
     pub fn iter(&self) -> impl Iterator<Item = &Row> {
         self.rows.iter()
     }
+
+    pub fn get(&self, index: usize) -> Option<&Row> {
+        self.rows.get(index)
+    }
+}
+
+struct MemTableIterator<'a> {
+    table: &'a MemTable,
+    pos: usize,
+}
+
+impl<'a> Iterator for MemTableIterator<'a> {
+    type Item = &'a Row;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos == self.table.max_table_size() {
+            return None;
+        }
+
+        let result = self.table.get(self.pos);
+        self.pos += 1;
+        result
+    }
+}
+
+impl<'a> IntoIterator for &'a MemTable {
+    type Item = &'a Row;
+    type IntoIter = MemTableIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        MemTableIterator{
+            table: self,
+            pos: 0,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -47,6 +83,7 @@ mod tests {
     use crate::field::*;
     use crate::mem_table;
     use crate::row::{Row, RowBuilder};
+    use std::iter::zip;
 
     fn create_row(fields: &[Field]) -> Row {
         let mut builder = RowBuilder::new(fields.len());
@@ -118,5 +155,10 @@ mod tests {
         check_row_with_expected(r.unwrap(), &fields3);
 
         assert!(it.next().is_none());
+
+        let expected = [&fields1, &fields2, &fields3];
+        for (row, field) in zip(&mem_table, expected) {
+            check_row_with_expected(row, field);
+        }
     }
 }
