@@ -1,3 +1,4 @@
+use crate::pg_errors::PgError;
 use crate::row::Row;
 use std::iter::IntoIterator;
 
@@ -36,6 +37,10 @@ impl MemTable {
         self.rows.push(row);
         self.rows.sort();
         self.current_size += 1;
+
+        if self.current_size() == self.max_table_size() {
+            let _ = self.flush();
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Row> {
@@ -44,6 +49,10 @@ impl MemTable {
 
     pub fn get(&self, index: usize) -> Option<&Row> {
         self.rows.get(index)
+    }
+
+    fn flush(&mut self) -> Result<(), PgError> {
+        Ok(())
     }
 }
 
@@ -71,7 +80,7 @@ impl<'a> IntoIterator for &'a MemTable {
     type IntoIter = MemTableIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        MemTableIterator{
+        MemTableIterator {
             table: self,
             pos: 0,
         }

@@ -4,6 +4,7 @@ use std::iter::{IntoIterator, Iterator};
 use std::ops::{Add, Index};
 
 use crate::field::{Field, FieldType};
+use crate::pg_errors::PgError;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Row {
@@ -55,8 +56,7 @@ impl RowBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Row, String> {
-        // @TODO error
+    pub fn build(self) -> Result<Row, PgError> {
         Ok(self.row)
     }
 }
