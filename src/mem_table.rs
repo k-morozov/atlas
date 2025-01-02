@@ -126,7 +126,7 @@ mod tests {
         let mut mem_table = mem_table::MemTable::new(3, max_row_length);
 
         let fields1 = [
-            Field::new(FieldType::Null),
+            Field::new(FieldType::Int(33)),
             Field::new(FieldType::String("a1".to_string())),
             Field::new(FieldType::String("a2".to_string())),
         ];
@@ -135,7 +135,7 @@ mod tests {
         mem_table.append(row);
 
         let fields2 = [
-            Field::new(FieldType::Null),
+            Field::new(FieldType::Int(33)),
             Field::new(FieldType::String("b1".to_string())),
             Field::new(FieldType::String("b2".to_string())),
         ];
@@ -144,7 +144,7 @@ mod tests {
         mem_table.append(row);
 
         let fields3 = [
-            Field::new(FieldType::Null),
+            Field::new(FieldType::Int(33)),
             Field::new(FieldType::String("c1".to_string())),
             Field::new(FieldType::String("c2".to_string())),
         ];
