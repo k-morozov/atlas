@@ -1,14 +1,13 @@
 use crate::field::FieldType;
 use crate::pg_errors::PgError;
 use crate::row::Row;
-use std::fs::{remove_file, File};
-use std::io::ErrorKind;
+use std::fs::File;
 use std::io::Write;
 use std::iter::Iterator;
 
 struct SegmentWriter<'a> {
     path_to_segment: String,
-    row_it: Box<dyn Iterator<Item = &'a Row> + 'a>,
+    row_it: Option<Box<dyn Iterator<Item = &'a Row> + 'a>>,
 }
 
 impl<'a> SegmentWriter<'a> {
@@ -17,33 +16,37 @@ impl<'a> SegmentWriter<'a> {
         T: Iterator<Item = &'a Row> + 'a,
     {
         Self {
-            row_it: Box::new(row_it),
+            row_it: Some(Box::new(row_it)),
             path_to_segment,
         }
     }
 
     pub fn flush(&mut self) -> Result<(), PgError> {
+        let row_it = self.row_it.take().ok_or(PgError::SegmentWriterFlushError)?;
+
         let result_create = File::create(self.path_to_segment.clone());
         if let Err(_) = result_create {
             return Err(PgError::SegmentWriterFlushError);
         };
         let mut fd = result_create.unwrap();
 
-        for row in self.row_it.by_ref() {
-            for field in row {
+        for row in row_it {
+            for (index, field) in row.iter().enumerate() {
                 match &field.field {
                     FieldType::Int(number) => {
                         fd.write_all(&number.to_be_bytes())
                             .map_err(|_| PgError::SegmentWriterFlushError)?;
                     }
                     FieldType::String(text) => {
-                        fd.write(text.as_bytes())
+                        fd.write_all(text.as_bytes())
                             .map_err(|_| PgError::SegmentWriterFlushError)?;
                     }
                 }
-                let _ = fd.write(b"\t");
+                if index != row.size() - 1 {
+                    let _ = fd.write_all(b"\t");
+                }
             }
-            let _ = fd.write(b"\n");
+            let _ = fd.write_all(b"\n");
         }
 
         Ok(())
@@ -55,10 +58,17 @@ mod test {
     use crate::field::{Field, FieldType};
     use crate::row::RowBuilder;
     use crate::segment_writer::*;
+    use std::fs::{create_dir_all, remove_file};
+    use std::path::Path;
+    use std::io::ErrorKind;
 
     #[test]
     fn create_segment() {
         let path = String::from("/tmp/pegasus/test/create_segment/part1.bin");
+
+        if let Some(parent) = Path::new(&path).parent() {
+            create_dir_all(parent).unwrap();
+        }
 
         if let Err(er) = remove_file(path.clone()) {
             assert_eq!(ErrorKind::NotFound, er.kind());
