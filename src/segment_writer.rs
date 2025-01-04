@@ -1,4 +1,5 @@
 use crate::field::FieldType;
+use crate::marshal::Marshal;
 use crate::pg_errors::PgError;
 use crate::row::Row;
 use std::fs::File;
@@ -30,20 +31,12 @@ impl<'a> SegmentWriter<'a> {
         let row_it = self.row_it.take().ok_or(std::io::ErrorKind::NotFound)?;
 
         for row in row_it {
-            for (index, field) in row.iter().enumerate() {
-                match &field.field {
-                    FieldType::Int32(number) => {
-                        self.buf.write_all(&number.to_le_bytes())?;
-                    } // FieldType::String(text) => {
-                      //     self.buf.write_all(text.as_bytes())?;
-                      // }
-                }
-                if index != row.size() - 1 {
-                    let _ = self.buf.write_all(b"\t");
-                }
-            }
-            let _ = self.buf.write_all(b"\n");
+            let mut row_buffer = vec![0u8; row.size()];
 
+            row.serialize(&mut row_buffer[0..])
+                .map_err(|_| std::io::ErrorKind::InvalidInput)?;
+
+            self.buf.write_all(&row_buffer[0..])?;
             self.buf.flush()?;
         }
 
@@ -77,9 +70,6 @@ mod test {
         for index in 1..4 {
             let row = RowBuilder::new(3)
                 .add_field(Field::new(FieldType::Int32(12 + index)))
-                // .add_field(Field::new(FieldType::String(
-                //     format!("hello msg {}", index).to_string(),
-                // )))
                 .add_field(Field::new(FieldType::Int32(100 + index)))
                 .build()
                 .unwrap();

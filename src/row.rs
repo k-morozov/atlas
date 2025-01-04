@@ -22,8 +22,14 @@ impl Row {
         Row { max_length, fields }
     }
 
-    pub fn size(&self) -> usize {
+    pub fn fields_len(&self) -> usize {
         self.fields.len()
+    }
+
+    pub fn size(&self) -> usize {
+        let mut total_size = 0;
+        self.fields.iter().for_each(|f| total_size += f.size());
+        total_size
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Field> {
@@ -31,7 +37,7 @@ impl Row {
     }
 
     fn push(&mut self, field: Field) {
-        if self.size() == self.max_length {
+        if self.fields_len() == self.max_length {
             panic!("Try push to row more than max_length");
         }
         self.fields.push(field);
@@ -40,25 +46,17 @@ impl Row {
     pub fn get(&self, index: usize) -> Option<&Field> {
         self.fields.get(index)
     }
-
-    pub fn get_fields(&self) -> Vec<Field> {
-        self.fields.clone()
-    }
 }
 
 impl Marshal for Row {
     fn serialize(&self, dst: &mut [u8]) -> Result<(), PgError> {
-        let mut dst: Vec<_> = Vec::with_capacity(self.max_length);
-
+        let mut offset = 0;
         for field in &self.fields {
-            match &field.field {
-                FieldType::Int32(number) => unsafe {
-                    copy(&number, dst.as_mut_ptr(), size_of::<i32>());
-                },
-            }
+            field.serialize(&mut dst[offset..offset + field.size()])?;
+            offset += field.size();
         }
 
-        unreachable!()
+        Ok(())
     }
     fn deserialize(&mut self, src: &[u8]) -> Result<(), PgError> {
         unreachable!()
@@ -109,7 +107,7 @@ impl<'a> Iterator for RowIterator<'a> {
     type Item = &'a Field;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.row.size() {
+        if self.pos == self.row.fields_len() {
             return None;
         }
 
@@ -136,7 +134,7 @@ mod tests {
     #[test]
     fn check_size() {
         let row = Row::new(3);
-        assert_eq!(row.size(), 0);
+        assert_eq!(row.fields_len(), 0);
     }
 
     #[test]
@@ -198,7 +196,7 @@ mod tests {
         assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int32(32)));
         // assert_eq!(
         //     *row.get(1).unwrap(),
-            // Field::new(FieldType::String("test msg".to_string()))
+        // Field::new(FieldType::String("test msg".to_string()))
         // );
         assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::Int32(33)));
 
