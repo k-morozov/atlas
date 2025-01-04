@@ -4,6 +4,7 @@ use std::iter::{IntoIterator, Iterator};
 use std::ops::{Add, Index};
 
 use crate::field::{Field, FieldType};
+use crate::pg_errors::PgError;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Row {
@@ -37,6 +38,10 @@ impl Row {
     pub fn get(&self, index: usize) -> Option<&Field> {
         self.fields.get(index)
     }
+
+    pub fn get_fields(&self) -> Vec<Field> {
+        self.fields.clone()
+    }
 }
 
 pub struct RowBuilder {
@@ -55,8 +60,7 @@ impl RowBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Row, String> {
-        // @TODO error
+    pub fn build(self) -> Result<Row, PgError> {
         Ok(self.row)
     }
 }
@@ -151,8 +155,8 @@ mod tests {
     #[should_panic]
     fn check_failed_push() {
         let mut row = Row::new(1);
-        row.push(Field::new(FieldType::Null));
-        row.push(Field::new(FieldType::Null));
+        row.push(Field::new(FieldType::Int(12)));
+        row.push(Field::new(FieldType::Int(11)));
     }
 
     #[test]
@@ -161,9 +165,9 @@ mod tests {
 
         row.push(Field::new(FieldType::Int(32)));
         row.push(Field::new(FieldType::String("test msg".to_string())));
-        row.push(Field::new(FieldType::Null));
+        row.push(Field::new(FieldType::Int(33)));
 
-        assert_eq!(row[2], Field::new(FieldType::Null));
+        assert_eq!(row[2], Field::new(FieldType::Int(33)));
         assert_eq!(
             row[1],
             Field::new(FieldType::String("test msg".to_string()))
@@ -175,7 +179,7 @@ mod tests {
             *row.get(1).unwrap(),
             Field::new(FieldType::String("test msg".to_string()))
         );
-        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Null));
+        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Int(33)));
 
         assert_eq!(row.get(3), None);
     }
@@ -187,11 +191,11 @@ mod tests {
         let row = builder
             .add_field(Field::new(FieldType::Int(42)))
             .add_field(Field::new(FieldType::String("test msg".to_string())))
-            .add_field(Field::new(FieldType::Null))
+            .add_field(Field::new(FieldType::Int(33)))
             .build()
             .unwrap();
 
-        assert_eq!(row[2], Field::new(FieldType::Null));
+        assert_eq!(row[2], Field::new(FieldType::Int(33)));
         assert_eq!(
             row[1],
             Field::new(FieldType::String("test msg".to_string()))
@@ -203,7 +207,7 @@ mod tests {
             *row.get(1).unwrap(),
             Field::new(FieldType::String("test msg".to_string()))
         );
-        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Null));
+        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Int(33)));
 
         assert!(row.get(3).is_none());
     }

@@ -1,3 +1,4 @@
+use crate::pg_errors::PgError;
 use crate::row::Row;
 use std::iter::IntoIterator;
 
@@ -36,6 +37,10 @@ impl MemTable {
         self.rows.push(row);
         self.rows.sort();
         self.current_size += 1;
+
+        if self.current_size() == self.max_table_size() {
+            let _ = self.flush();
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Row> {
@@ -44,6 +49,10 @@ impl MemTable {
 
     pub fn get(&self, index: usize) -> Option<&Row> {
         self.rows.get(index)
+    }
+
+    fn flush(&mut self) -> Result<(), PgError> {
+        Ok(())
     }
 }
 
@@ -71,7 +80,7 @@ impl<'a> IntoIterator for &'a MemTable {
     type IntoIter = MemTableIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        MemTableIterator{
+        MemTableIterator {
             table: self,
             pos: 0,
         }
@@ -117,7 +126,7 @@ mod tests {
         let mut mem_table = mem_table::MemTable::new(3, max_row_length);
 
         let fields1 = [
-            Field::new(FieldType::Null),
+            Field::new(FieldType::Int(33)),
             Field::new(FieldType::String("a1".to_string())),
             Field::new(FieldType::String("a2".to_string())),
         ];
@@ -126,7 +135,7 @@ mod tests {
         mem_table.append(row);
 
         let fields2 = [
-            Field::new(FieldType::Null),
+            Field::new(FieldType::Int(33)),
             Field::new(FieldType::String("b1".to_string())),
             Field::new(FieldType::String("b2".to_string())),
         ];
@@ -135,7 +144,7 @@ mod tests {
         mem_table.append(row);
 
         let fields3 = [
-            Field::new(FieldType::Null),
+            Field::new(FieldType::Int(33)),
             Field::new(FieldType::String("c1".to_string())),
             Field::new(FieldType::String("c2".to_string())),
         ];
