@@ -32,12 +32,11 @@ impl<'a> SegmentWriter<'a> {
         for row in row_it {
             for (index, field) in row.iter().enumerate() {
                 match &field.field {
-                    FieldType::Int(number) => {
+                    FieldType::Int32(number) => {
                         self.buf.write_all(&number.to_le_bytes())?;
-                    }
-                    FieldType::String(text) => {
-                        self.buf.write_all(text.as_bytes())?;
-                    }
+                    } // FieldType::String(text) => {
+                      //     self.buf.write_all(text.as_bytes())?;
+                      // }
                 }
                 if index != row.size() - 1 {
                     let _ = self.buf.write_all(b"\t");
@@ -77,11 +76,11 @@ mod test {
 
         for index in 1..4 {
             let row = RowBuilder::new(3)
-                .add_field(Field::new(FieldType::Int(12 + index)))
-                .add_field(Field::new(FieldType::String(
-                    format!("hello msg {}", index).to_string(),
-                )))
-                .add_field(Field::new(FieldType::Int(100 + index)))
+                .add_field(Field::new(FieldType::Int32(12 + index)))
+                // .add_field(Field::new(FieldType::String(
+                //     format!("hello msg {}", index).to_string(),
+                // )))
+                .add_field(Field::new(FieldType::Int32(100 + index)))
                 .build()
                 .unwrap();
 
