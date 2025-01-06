@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, ErrorKind::UnexpectedEof, Read};
+use std::rc::Rc;
 
 use crate::field::FieldType;
 use crate::marshal::Marshal;
@@ -8,13 +9,13 @@ use crate::row::Row;
 use crate::schema::{schema_size, Schema};
 
 struct SegmentReader {
-    schema: Schema,
+    schema: Rc<Schema>,
     schema_size: usize,
     part_file: File,
 }
 
 impl SegmentReader {
-    pub fn new(path_to_part: String, schema: Schema) -> Self {
+    pub fn new(path_to_part: String, schema: Rc<Schema>) -> Self {
         SegmentReader {
             part_file: File::open(path_to_part).unwrap(),
             schema_size: schema_size(&schema),
@@ -31,9 +32,11 @@ impl SegmentReader {
             match part_buffer.read_exact(&mut row_buffer) {
                 Ok(_) => {
                     let mut row = Row::new(self.schema.len());
-                    let _ = row
+                    row.set_schema(self.schema.clone())?;
+
+                    row
                         .deserialize(&row_buffer)
-                        .map_err(|_| PgError::MarshalFailedDeserialization);
+                        .map_err(|_| PgError::MarshalFailedDeserialization)?;
 
                     result.push(row);
                 }

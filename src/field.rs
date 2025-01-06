@@ -46,8 +46,8 @@ impl Marshal for Field {
     fn deserialize(&mut self, src: &[u8]) -> Result<(), PgError> {
         match &mut self.field {
             FieldType::Int32(dst) => {
-                if size_of::<i32>() != src.len() {
-                    return Err(PgError::MarshalFailedSerialization);
+                if size_of::<i32>() > src.len() {
+                    return Err(PgError::MarshalFailedDeserialization);
                 }
                 unsafe {
                     copy(src.as_ptr(), dst as *mut i32 as *mut u8, size_of::<i32>());

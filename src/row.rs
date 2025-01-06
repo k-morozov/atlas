@@ -2,16 +2,18 @@ use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 
 use std::iter::{IntoIterator, Iterator};
 use std::ops::{Add, Index};
+use std::rc::Rc;
 
 use crate::field::{Field, FieldType};
 use crate::marshal::Marshal;
 use crate::pg_errors::PgError;
-use std::ptr::copy;
+use crate::schema::Schema;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Row {
     fields: Vec<Field>,
     max_length: usize,
+    schema: Option<Rc<Schema>>,
 }
 
 impl Row {
@@ -19,7 +21,11 @@ impl Row {
         let mut fields = Vec::<Field>::new();
         fields.reserve(max_length);
 
-        Row { max_length, fields }
+        Row {
+            schema: None,
+            max_length,
+            fields,
+        }
     }
 
     pub fn fields_len(&self) -> usize {
@@ -46,6 +52,18 @@ impl Row {
     pub fn get(&self, index: usize) -> Option<&Field> {
         self.fields.get(index)
     }
+
+    pub fn set_schema(&mut self, schema: Rc<Schema>) -> Result<(), PgError> {
+        match &self.schema {
+            Some(_) => {
+                return Err(PgError::RowAlreadyContainsSchema);
+            }
+            None => {
+                self.schema = Some(schema);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Marshal for Row {
@@ -59,7 +77,25 @@ impl Marshal for Row {
         Ok(())
     }
     fn deserialize(&mut self, src: &[u8]) -> Result<(), PgError> {
-        unreachable!()
+        match &self.schema {
+            Some(schema) => {
+                let mut offset = 0;
+
+                for schema_field in schema.iter() {
+                    let mut deserialized_field = Field::new(schema_field.field.clone());
+
+                    deserialized_field.deserialize(&src[offset..])?;
+                    offset += deserialized_field.size();
+
+                    self.fields.push(deserialized_field);
+                }
+            }
+            None => {
+                return Err(PgError::NoSchemaInRow);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -129,7 +165,9 @@ impl<'a> IntoIterator for &'a Row {
 
 #[cfg(test)]
 mod tests {
+    use crate::field::*;
     use crate::row::*;
+    use crate::schema::Schema;
 
     #[test]
     fn check_size() {
@@ -183,51 +221,65 @@ mod tests {
         let mut row = Row::new(2);
 
         row.push(Field::new(FieldType::Int32(32)));
-        // row.push(Field::new(FieldType::String("test msg".to_string())));
         row.push(Field::new(FieldType::Int32(33)));
 
         assert_eq!(row[1], Field::new(FieldType::Int32(33)));
-        // assert_eq!(
-        //     row[1],
-        //     Field::new(FieldType::String("test msg".to_string()))
-        // );
         assert_eq!(row[0], Field::new(FieldType::Int32(32)));
 
         assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int32(32)));
-        // assert_eq!(
-        //     *row.get(1).unwrap(),
-        // Field::new(FieldType::String("test msg".to_string()))
-        // );
         assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::Int32(33)));
 
         assert_eq!(row.get(2), None);
     }
 
     #[test]
-    fn check_build() {
+    fn check_builder() {
         let builder = RowBuilder::new(2);
 
         let row = builder
             .add_field(Field::new(FieldType::Int32(42)))
-            // .add_field(Field::new(FieldType::String("test msg".to_string())))
             .add_field(Field::new(FieldType::Int32(33)))
             .build()
             .unwrap();
 
         assert_eq!(row[1], Field::new(FieldType::Int32(33)));
-        // assert_eq!(
-        //     row[1],
-        //     Field::new(FieldType::String("test msg".to_string()))
-        // );
         assert_eq!(row[0], Field::new(FieldType::Int32(42)));
 
         assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int32(42)));
-        // assert_eq!(
-        //     *row.get(1).unwrap(),
-        //     Field::new(FieldType::String("test msg".to_string()))
-        // );
         assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::Int32(33)));
 
         assert!(row.get(2).is_none());
+    }
+
+    #[test]
+    fn serialization() {
+        let builder = RowBuilder::new(2);
+
+        let row_in = builder
+            .add_field(Field::new(FieldType::Int32(42)))
+            .add_field(Field::new(FieldType::Int32(33)))
+            .build()
+            .unwrap();
+
+        let mut row_buffer = vec![0u8; row_in.size()];
+        let result = row_in.serialize(&mut row_buffer);
+        assert!(result.is_ok());
+
+        let schema = Rc::new(vec![
+            Field::new(FieldType::Int32(0)),
+            Field::new(FieldType::Int32(0)),
+        ]);
+
+        let mut row_out = Row::new(2);
+        let result = row_out.set_schema(schema);
+        assert!(result.is_ok());
+
+        let result = row_out.deserialize(&row_buffer);
+        assert!(result.is_ok());
+
+        assert_eq!(row_out[0], Field::new(FieldType::Int32(42)));
+        assert_eq!(row_out[1], Field::new(FieldType::Int32(33)));
+
+        assert_eq!(row_out.size(), 2*size_of::<i32>());
     }
 }
