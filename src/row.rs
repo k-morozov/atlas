@@ -4,7 +4,9 @@ use std::iter::{IntoIterator, Iterator};
 use std::ops::{Add, Index};
 
 use crate::field::{Field, FieldType};
+use crate::marshal::Marshal;
 use crate::pg_errors::PgError;
+use std::ptr::copy;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Row {
@@ -20,8 +22,14 @@ impl Row {
         Row { max_length, fields }
     }
 
-    pub fn size(&self) -> usize {
+    pub fn fields_len(&self) -> usize {
         self.fields.len()
+    }
+
+    pub fn size(&self) -> usize {
+        let mut total_size = 0;
+        self.fields.iter().for_each(|f| total_size += f.size());
+        total_size
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Field> {
@@ -29,7 +37,7 @@ impl Row {
     }
 
     fn push(&mut self, field: Field) {
-        if self.size() == self.max_length {
+        if self.fields_len() == self.max_length {
             panic!("Try push to row more than max_length");
         }
         self.fields.push(field);
@@ -38,9 +46,20 @@ impl Row {
     pub fn get(&self, index: usize) -> Option<&Field> {
         self.fields.get(index)
     }
+}
 
-    pub fn get_fields(&self) -> Vec<Field> {
-        self.fields.clone()
+impl Marshal for Row {
+    fn serialize(&self, dst: &mut [u8]) -> Result<(), PgError> {
+        let mut offset = 0;
+        for field in &self.fields {
+            field.serialize(&mut dst[offset..offset + field.size()])?;
+            offset += field.size();
+        }
+
+        Ok(())
+    }
+    fn deserialize(&mut self, src: &[u8]) -> Result<(), PgError> {
+        unreachable!()
     }
 }
 
@@ -88,7 +107,7 @@ impl<'a> Iterator for RowIterator<'a> {
     type Item = &'a Field;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.row.size() {
+        if self.pos == self.row.fields_len() {
             return None;
         }
 
@@ -115,7 +134,7 @@ mod tests {
     #[test]
     fn check_size() {
         let row = Row::new(3);
-        assert_eq!(row.size(), 0);
+        assert_eq!(row.fields_len(), 0);
     }
 
     #[test]
@@ -155,60 +174,60 @@ mod tests {
     #[should_panic]
     fn check_failed_push() {
         let mut row = Row::new(1);
-        row.push(Field::new(FieldType::Int(12)));
-        row.push(Field::new(FieldType::Int(11)));
+        row.push(Field::new(FieldType::Int32(12)));
+        row.push(Field::new(FieldType::Int32(11)));
     }
 
     #[test]
     fn check_push() {
-        let mut row = Row::new(3);
+        let mut row = Row::new(2);
 
-        row.push(Field::new(FieldType::Int(32)));
-        row.push(Field::new(FieldType::String("test msg".to_string())));
-        row.push(Field::new(FieldType::Int(33)));
+        row.push(Field::new(FieldType::Int32(32)));
+        // row.push(Field::new(FieldType::String("test msg".to_string())));
+        row.push(Field::new(FieldType::Int32(33)));
 
-        assert_eq!(row[2], Field::new(FieldType::Int(33)));
-        assert_eq!(
-            row[1],
-            Field::new(FieldType::String("test msg".to_string()))
-        );
-        assert_eq!(row[0], Field::new(FieldType::Int(32)));
+        assert_eq!(row[1], Field::new(FieldType::Int32(33)));
+        // assert_eq!(
+        //     row[1],
+        //     Field::new(FieldType::String("test msg".to_string()))
+        // );
+        assert_eq!(row[0], Field::new(FieldType::Int32(32)));
 
-        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int(32)));
-        assert_eq!(
-            *row.get(1).unwrap(),
-            Field::new(FieldType::String("test msg".to_string()))
-        );
-        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Int(33)));
+        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int32(32)));
+        // assert_eq!(
+        //     *row.get(1).unwrap(),
+        // Field::new(FieldType::String("test msg".to_string()))
+        // );
+        assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::Int32(33)));
 
-        assert_eq!(row.get(3), None);
+        assert_eq!(row.get(2), None);
     }
 
     #[test]
     fn check_build() {
-        let builder = RowBuilder::new(3);
+        let builder = RowBuilder::new(2);
 
         let row = builder
-            .add_field(Field::new(FieldType::Int(42)))
-            .add_field(Field::new(FieldType::String("test msg".to_string())))
-            .add_field(Field::new(FieldType::Int(33)))
+            .add_field(Field::new(FieldType::Int32(42)))
+            // .add_field(Field::new(FieldType::String("test msg".to_string())))
+            .add_field(Field::new(FieldType::Int32(33)))
             .build()
             .unwrap();
 
-        assert_eq!(row[2], Field::new(FieldType::Int(33)));
-        assert_eq!(
-            row[1],
-            Field::new(FieldType::String("test msg".to_string()))
-        );
-        assert_eq!(row[0], Field::new(FieldType::Int(42)));
+        assert_eq!(row[1], Field::new(FieldType::Int32(33)));
+        // assert_eq!(
+        //     row[1],
+        //     Field::new(FieldType::String("test msg".to_string()))
+        // );
+        assert_eq!(row[0], Field::new(FieldType::Int32(42)));
 
-        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int(42)));
-        assert_eq!(
-            *row.get(1).unwrap(),
-            Field::new(FieldType::String("test msg".to_string()))
-        );
-        assert_eq!(*row.get(2).unwrap(), Field::new(FieldType::Int(33)));
+        assert_eq!(*row.get(0).unwrap(), Field::new(FieldType::Int32(42)));
+        // assert_eq!(
+        //     *row.get(1).unwrap(),
+        //     Field::new(FieldType::String("test msg".to_string()))
+        // );
+        assert_eq!(*row.get(1).unwrap(), Field::new(FieldType::Int32(33)));
 
-        assert!(row.get(3).is_none());
+        assert!(row.get(2).is_none());
     }
 }

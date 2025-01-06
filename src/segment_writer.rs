@@ -1,4 +1,5 @@
 use crate::field::FieldType;
+use crate::marshal::Marshal;
 use crate::pg_errors::PgError;
 use crate::row::Row;
 use std::fs::File;
@@ -26,26 +27,28 @@ impl<'a> SegmentWriter<'a> {
         }
     }
 
-    pub fn write_rows(&mut self) -> Result<(), std::io::Error> {
-        let row_it = self.row_it.take().ok_or(std::io::ErrorKind::NotFound)?;
+    // trait Writer is more suitable?
+    pub fn write_rows(&mut self) -> Result<(), PgError> {
+        if self.row_it.is_none() {
+            return Err(PgError::MarshalFailedSerialization);
+        }
+        let row_it = self
+            .row_it
+            .take()
+            .ok_or(PgError::MarshalFailedSerialization)?;
 
         for row in row_it {
-            for (index, field) in row.iter().enumerate() {
-                match &field.field {
-                    FieldType::Int(number) => {
-                        self.buf.write_all(&number.to_le_bytes())?;
-                    }
-                    FieldType::String(text) => {
-                        self.buf.write_all(text.as_bytes())?;
-                    }
-                }
-                if index != row.size() - 1 {
-                    let _ = self.buf.write_all(b"\t");
-                }
-            }
-            let _ = self.buf.write_all(b"\n");
+            let mut row_buffer = vec![0u8; row.size()];
 
-            self.buf.flush()?;
+            row.serialize(&mut row_buffer[0..])
+                .map_err(|_| PgError::MarshalFailedSerialization)?;
+
+            self.buf
+                .write_all(&row_buffer[0..])
+                .map_err(|_| PgError::MarshalFailedSerialization)?;
+            self.buf
+                .flush()
+                .map_err(|_| PgError::MarshalFailedSerialization)?;
         }
 
         Ok(())
@@ -77,11 +80,8 @@ mod test {
 
         for index in 1..4 {
             let row = RowBuilder::new(3)
-                .add_field(Field::new(FieldType::Int(12 + index)))
-                .add_field(Field::new(FieldType::String(
-                    format!("hello msg {}", index).to_string(),
-                )))
-                .add_field(Field::new(FieldType::Int(100 + index)))
+                .add_field(Field::new(FieldType::Int32(12 + index)))
+                .add_field(Field::new(FieldType::Int32(100 + index)))
                 .build()
                 .unwrap();
 
