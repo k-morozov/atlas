@@ -84,7 +84,7 @@ impl Marshal for Row {
                 for schema_field in schema.iter() {
                     let mut deserialized_field = Field::new(schema_field.field.clone());
 
-                    deserialized_field.deserialize(&src[offset..])?;
+                    deserialized_field.deserialize(&src[offset..offset+schema_field.size()])?;
                     offset += deserialized_field.size();
 
                     self.fields.push(deserialized_field);
@@ -280,6 +280,6 @@ mod tests {
         assert_eq!(row_out[0], Field::new(FieldType::Int32(42)));
         assert_eq!(row_out[1], Field::new(FieldType::Int32(33)));
 
-        assert_eq!(row_out.size(), 2*size_of::<i32>());
+        assert_eq!(row_out.size(), 2 * size_of::<i32>());
     }
 }

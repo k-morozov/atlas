@@ -34,8 +34,7 @@ impl SegmentReader {
                     let mut row = Row::new(self.schema.len());
                     row.set_schema(self.schema.clone())?;
 
-                    row
-                        .deserialize(&row_buffer)
+                    row.deserialize(&row_buffer)
                         .map_err(|_| PgError::MarshalFailedDeserialization)?;
 
                     result.push(row);
