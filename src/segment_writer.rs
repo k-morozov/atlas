@@ -27,17 +27,28 @@ impl<'a> SegmentWriter<'a> {
         }
     }
 
-    pub fn write_rows(&mut self) -> Result<(), std::io::Error> {
-        let row_it = self.row_it.take().ok_or(std::io::ErrorKind::NotFound)?;
+    // trait Writer is more suitable?
+    pub fn write_rows(&mut self) -> Result<(), PgError> {
+        if self.row_it.is_none() {
+            return Err(PgError::MarshalFailedSerialization);
+        }
+        let row_it = self
+            .row_it
+            .take()
+            .ok_or(PgError::MarshalFailedSerialization)?;
 
         for row in row_it {
             let mut row_buffer = vec![0u8; row.size()];
 
             row.serialize(&mut row_buffer[0..])
-                .map_err(|_| std::io::ErrorKind::InvalidInput)?;
+                .map_err(|_| PgError::MarshalFailedSerialization)?;
 
-            self.buf.write_all(&row_buffer[0..])?;
-            self.buf.flush()?;
+            self.buf
+                .write_all(&row_buffer[0..])
+                .map_err(|_| PgError::MarshalFailedSerialization)?;
+            self.buf
+                .flush()
+                .map_err(|_| PgError::MarshalFailedSerialization)?;
         }
 
         Ok(())

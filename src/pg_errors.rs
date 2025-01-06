@@ -4,4 +4,5 @@ pub enum PgError {
     MemTableFlushError,
     SegmentWriterFlushError,
     MarshalFailedSerialization,
+    MarshalFailedDeserialization,
 }
