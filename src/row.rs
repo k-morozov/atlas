@@ -9,7 +9,7 @@ use crate::marshal::Marshal;
 use crate::pg_errors::PgError;
 use crate::schema::Schema;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Row {
     fields: Vec<Field>,
     max_length: usize,
@@ -82,9 +82,9 @@ impl Marshal for Row {
                 let mut offset = 0;
 
                 for schema_field in schema.iter() {
-                    let mut deserialized_field = Field::new(schema_field.field.clone());
+                    let mut deserialized_field = Field::new(schema_field.value.clone());
 
-                    deserialized_field.deserialize(&src[offset..offset+schema_field.size()])?;
+                    deserialized_field.deserialize(&src[offset..offset + schema_field.size()])?;
                     offset += deserialized_field.size();
 
                     self.fields.push(deserialized_field);

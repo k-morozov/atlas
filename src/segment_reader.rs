@@ -52,4 +52,82 @@ impl SegmentReader {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use std::fs::*;
+    use std::io::{BufWriter, Write};
+    use std::rc::Rc;
+
+    use crate::field::*;
+    use crate::marshal::Marshal;
+    use crate::row::*;
+    use crate::schema::*;
+    use crate::segment_reader::*;
+    use std::io::ErrorKind;
+    use std::path::Path;
+
+    fn create_part(path: String, rows: &Vec<Row>) {
+        if let Some(parent) = Path::new(&path).parent() {
+            create_dir_all(parent).unwrap();
+        }
+
+        if let Err(er) = remove_file(path.clone()) {
+            assert_eq!(ErrorKind::NotFound, er.kind());
+        }
+
+        let mut buf = BufWriter::new(File::create(path).unwrap());
+
+        for row in rows {
+            let mut row_buf = vec![0u8; row.size()];
+            let r = row.serialize(&mut row_buf);
+            assert!(r.is_ok());
+
+            let r = buf.write_all(&row_buf);
+            assert!(r.is_ok());
+        }
+
+        let r = buf.flush();
+        assert!(r.is_ok());
+    }
+
+    #[test]
+    fn simple_segment_reader() {
+        let schema = Rc::new(vec![
+            Field::new(FieldType::Int32(0)),
+            Field::new(FieldType::Int32(0)),
+        ]);
+
+        let mut row1 = RowBuilder::new(2)
+            .add_field(Field::new(FieldType::Int32(42)))
+            .add_field(Field::new(FieldType::Int32(33)))
+            .build()
+            .unwrap();
+
+        let mut row2 = RowBuilder::new(2)
+            .add_field(Field::new(FieldType::Int32(142)))
+            .add_field(Field::new(FieldType::Int32(133)))
+            .build()
+            .unwrap();
+
+        let r = row1.set_schema(schema.clone());
+        assert!(r.is_ok());
+        let r = row2.set_schema(schema.clone());
+        assert!(r.is_ok());
+
+        let mut rows = Vec::new();
+        rows.push(row1.clone());
+        rows.push(row2.clone());
+
+        let path = String::from("/tmp/pegasus/test/simple_segment_reader/part1.bin");
+        create_part(path.clone(), &rows);
+        
+        let reader = SegmentReader::new(path.clone(), schema.clone());
+
+        let result = reader.read();
+        assert!(result.is_ok());
+
+        let actual = result.unwrap();
+
+        assert_eq!(actual[0], row1);
+        assert_eq!(actual[1], row2);
+    }
+}
