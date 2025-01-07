@@ -5,4 +5,6 @@ pub enum PgError {
     SegmentWriterFlushError,
     MarshalFailedSerialization,
     MarshalFailedDeserialization,
+    RowAlreadyContainsSchema,
+    NoSchemaInRow,
 }

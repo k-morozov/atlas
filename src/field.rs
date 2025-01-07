@@ -10,16 +10,16 @@ pub enum FieldType {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Field {
-    pub field: FieldType,
+    pub value: FieldType,
 }
 
 impl Field {
-    pub fn new(field: FieldType) -> Self {
-        Field { field }
+    pub fn new(value: FieldType) -> Self {
+        Field { value }
     }
 
     pub fn size(&self) -> usize {
-        match self.field {
+        match self.value {
             FieldType::Int32(_) => size_of::<i32>(),
         }
     }
@@ -27,7 +27,7 @@ impl Field {
 
 impl Marshal for Field {
     fn serialize(&self, dst: &mut [u8]) -> Result<(), PgError> {
-        match &self.field {
+        match &self.value {
             FieldType::Int32(number) => {
                 if size_of::<i32>() != dst.len() {
                     return Err(PgError::MarshalFailedSerialization);
@@ -44,10 +44,10 @@ impl Marshal for Field {
         Ok(())
     }
     fn deserialize(&mut self, src: &[u8]) -> Result<(), PgError> {
-        match &mut self.field {
+        match &mut self.value {
             FieldType::Int32(dst) => {
                 if size_of::<i32>() != src.len() {
-                    return Err(PgError::MarshalFailedSerialization);
+                    return Err(PgError::MarshalFailedDeserialization);
                 }
                 unsafe {
                     copy(src.as_ptr(), dst as *mut i32 as *mut u8, size_of::<i32>());
@@ -82,7 +82,7 @@ mod test {
         let r = field.deserialize(src);
         assert!(r.is_ok());
 
-        assert_eq!(field.field, FieldType::Int32(432));
+        assert_eq!(field.value, FieldType::Int32(432));
     }
 
     #[test]
@@ -102,7 +102,6 @@ mod test {
         let src = &[176, 1, 0, 0, 13];
 
         let r = field.deserialize(src);
-        assert!(r.is_err());
-        assert_eq!(r, Err(PgError::MarshalFailedSerialization));
+        assert_eq!(r, Err(PgError::MarshalFailedDeserialization));
     }
 }
