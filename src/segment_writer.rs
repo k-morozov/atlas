@@ -7,6 +7,7 @@ use std::io::{BufWriter, Write};
 use std::iter::Iterator;
 use std::mem::MaybeUninit;
 use std::path::Path;
+use std::slice::from_raw_parts;
 
 struct SegmentWriter<'a> {
     buf: BufWriter<File>,
@@ -40,23 +41,16 @@ impl<'a> SegmentWriter<'a> {
             .ok_or(PgError::MarshalFailedSerialization)?;
 
         for row in row_it {
-            // let mut row_buffer: Vec<MaybeUninit<u8>> = Vec::with_capacity(row.size());
-            // unsafe {
-            //     row_buffer.set_len(row.size());
-            // }
+            let mut row_buf_raw = vec![MaybeUninit::uninit(); row.size()];
 
-            let mut row_buffer_raw = vec![MaybeUninit::uninit(); row.size()];
-
-            row.serialize(&mut row_buffer_raw)
+            row.serialize(&mut row_buf_raw)
                 .map_err(|_| PgError::MarshalFailedSerialization)?;
 
-            let row_buffer_initialized = row_buffer_raw
-                .iter()
-                .map(|entry| unsafe { entry.assume_init() })
-                .collect::<Vec<u8>>();
+            let row_buf_initialized =
+                unsafe { from_raw_parts(row_buf_raw.as_ptr() as *const u8, row.size()) };
 
             self.buf
-                .write_all(&row_buffer_initialized)
+                .write_all(&row_buf_initialized)
                 .map_err(|_| PgError::MarshalFailedSerialization)?;
             self.buf
                 .flush()

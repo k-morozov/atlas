@@ -58,6 +58,7 @@ mod test {
     use std::fs::*;
     use std::io::{BufWriter, Write};
     use std::rc::Rc;
+    use std::slice::from_raw_parts;
 
     use crate::field::*;
     use crate::marshal::Marshal;
@@ -83,12 +84,10 @@ mod test {
             let r: Result<(), PgError> = row.serialize(&mut row_buf_raw);
             assert!(r.is_ok());
 
-            let row_buf_initialized = row_buf_raw
-                .iter()
-                .map(|entry| unsafe { entry.assume_init() })
-                .collect::<Vec<u8>>();
+            let row_buf_initialized =
+                unsafe { from_raw_parts(row_buf_raw.as_ptr() as *const u8, row.size()) };
 
-            let r = buf.write_all(&row_buf_initialized);
+            let r = buf.write_all(row_buf_initialized);
             assert!(r.is_ok());
         }
 
