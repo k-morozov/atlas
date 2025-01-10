@@ -1,5 +1,7 @@
 use std::fs::File;
 use std::io::{BufReader, ErrorKind::UnexpectedEof, Read};
+use std::mem::MaybeUninit;
+use std::path::Path;
 use std::rc::Rc;
 
 use crate::field::FieldType;
@@ -15,7 +17,7 @@ struct SegmentReader {
 }
 
 impl SegmentReader {
-    pub fn new(path_to_part: String, schema: Rc<Schema>) -> Self {
+    pub fn new(path_to_part: &Path, schema: Rc<Schema>) -> Self {
         SegmentReader {
             part_file: File::open(path_to_part).unwrap(),
             schema_size: schema_size(&schema),
@@ -56,6 +58,7 @@ mod test {
     use std::fs::*;
     use std::io::{BufWriter, Write};
     use std::rc::Rc;
+    use std::slice::from_raw_parts;
 
     use crate::field::*;
     use crate::marshal::Marshal;
@@ -65,23 +68,26 @@ mod test {
     use std::io::ErrorKind;
     use std::path::Path;
 
-    fn create_part(path: String, rows: &Vec<Row>) {
-        if let Some(parent) = Path::new(&path).parent() {
+    fn create_part(path: &Path, rows: &Vec<Row>) {
+        if let Some(parent) = path.parent() {
             create_dir_all(parent).unwrap();
         }
 
-        if let Err(er) = remove_file(path.clone()) {
+        if let Err(er) = remove_file(path) {
             assert_eq!(ErrorKind::NotFound, er.kind());
         }
 
         let mut buf = BufWriter::new(File::create(path).unwrap());
 
         for row in rows {
-            let mut row_buf = vec![0u8; row.size()];
-            let r = row.serialize(&mut row_buf);
+            let mut row_buf_raw = vec![MaybeUninit::uninit(); row.size()];
+            let r: Result<(), PgError> = row.serialize(&mut row_buf_raw);
             assert!(r.is_ok());
 
-            let r = buf.write_all(&row_buf);
+            let row_buf_initialized =
+                unsafe { from_raw_parts(row_buf_raw.as_ptr() as *const u8, row.size()) };
+
+            let r = buf.write_all(row_buf_initialized);
             assert!(r.is_ok());
         }
 
@@ -117,10 +123,10 @@ mod test {
         rows.push(row1.clone());
         rows.push(row2.clone());
 
-        let path = String::from("/tmp/pegasus/test/simple_segment_reader/part1.bin");
-        create_part(path.clone(), &rows);
-        
-        let reader = SegmentReader::new(path.clone(), schema.clone());
+        let path = Path::new("/tmp/pegasus/test/simple_segment_reader/part1.bin");
+        create_part(path, &rows);
+
+        let reader = SegmentReader::new(path, schema.clone());
 
         let result = reader.read();
         assert!(result.is_ok());

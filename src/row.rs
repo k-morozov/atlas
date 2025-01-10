@@ -1,6 +1,7 @@
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 
 use std::iter::{IntoIterator, Iterator};
+use std::mem::MaybeUninit;
 use std::ops::{Add, Index};
 use std::rc::Rc;
 
@@ -67,7 +68,7 @@ impl Row {
 }
 
 impl Marshal for Row {
-    fn serialize(&self, dst: &mut [u8]) -> Result<(), PgError> {
+    fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), PgError> {
         let mut offset = 0;
         for field in &self.fields {
             field.serialize(&mut dst[offset..offset + field.size()])?;
@@ -261,8 +262,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let mut row_buffer = vec![0u8; row_in.size()];
-        let result = row_in.serialize(&mut row_buffer);
+        let mut row_buffer_raw = vec![MaybeUninit::<u8>::uninit(); row_in.size()];
+        let result = row_in.serialize(&mut row_buffer_raw);
         assert!(result.is_ok());
 
         let schema = Rc::new(vec![
@@ -274,7 +275,12 @@ mod tests {
         let result = row_out.set_schema(schema);
         assert!(result.is_ok());
 
-        let result = row_out.deserialize(&row_buffer);
+        let row_buffer_initialized = row_buffer_raw
+            .iter()
+            .map(|entry| unsafe { entry.assume_init() })
+            .collect::<Vec<u8>>();
+
+        let result = row_out.deserialize(&row_buffer_initialized);
         assert!(result.is_ok());
 
         assert_eq!(row_out[0], Field::new(FieldType::Int32(42)));

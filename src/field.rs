@@ -1,6 +1,7 @@
 use crate::marshal::Marshal;
 use crate::pg_errors::PgError;
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
+use std::mem::MaybeUninit;
 use std::ptr::copy;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
@@ -26,16 +27,17 @@ impl Field {
 }
 
 impl Marshal for Field {
-    fn serialize(&self, dst: &mut [u8]) -> Result<(), PgError> {
+    fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), PgError> {
         match &self.value {
             FieldType::Int32(number) => {
                 if size_of::<i32>() != dst.len() {
                     return Err(PgError::MarshalFailedSerialization);
                 }
+
                 unsafe {
                     copy(
                         number as *const i32 as *const u8,
-                        dst.as_mut_ptr(),
+                        dst.as_mut_ptr() as *mut u8,
                         size_of::<i32>(),
                     );
                 }
@@ -43,6 +45,7 @@ impl Marshal for Field {
         }
         Ok(())
     }
+
     fn deserialize(&mut self, src: &[u8]) -> Result<(), PgError> {
         match &mut self.value {
             FieldType::Int32(dst) => {
@@ -60,18 +63,25 @@ impl Marshal for Field {
 
 #[cfg(test)]
 mod test {
+    use std::mem::MaybeUninit;
+
     use crate::field::*;
 
     #[test]
     fn simple_serialize() {
         let field = Field::new(FieldType::Int32(432));
-        let mut dst = Vec::<u8>::new();
-        dst.resize(size_of::<i32>(), 0);
 
-        let r = field.serialize(&mut dst[0..]);
+        let mut dst = vec![MaybeUninit::uninit(); size_of::<i32>()];
+
+        let r = field.serialize(&mut dst);
         assert!(r.is_ok());
 
-        assert_eq!(dst, &[176, 1, 0, 0]);
+        assert_eq!(
+            dst.iter()
+                .map(|entry| unsafe { entry.assume_init() })
+                .collect::<Vec<u8>>(),
+            &[176, 1, 0, 0]
+        );
     }
 
     #[test]
@@ -88,10 +98,10 @@ mod test {
     #[test]
     fn failed_serialize() {
         let field: Field = Field::new(FieldType::Int32(432));
-        let mut dst = Vec::<u8>::new();
-        dst.resize(1, 0);
 
-        let r = field.serialize(&mut dst[0..]);
+        let mut dst = vec![MaybeUninit::uninit(); 1];
+
+        let r = field.serialize(&mut dst);
         assert!(r.is_err());
         assert_eq!(r, Err(PgError::MarshalFailedSerialization));
     }

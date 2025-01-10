@@ -5,6 +5,9 @@ use crate::row::Row;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::iter::Iterator;
+use std::mem::MaybeUninit;
+use std::path::Path;
+use std::slice::from_raw_parts;
 
 struct SegmentWriter<'a> {
     buf: BufWriter<File>,
@@ -12,7 +15,7 @@ struct SegmentWriter<'a> {
 }
 
 impl<'a> SegmentWriter<'a> {
-    pub fn new<T>(path_to_segment: String, row_it: T) -> Self
+    pub fn new<T>(path_to_segment: &Path, row_it: T) -> Self
     where
         T: Iterator<Item = &'a Row> + 'a,
     {
@@ -38,13 +41,16 @@ impl<'a> SegmentWriter<'a> {
             .ok_or(PgError::MarshalFailedSerialization)?;
 
         for row in row_it {
-            let mut row_buffer = vec![0u8; row.size()];
+            let mut row_buf_raw = vec![MaybeUninit::uninit(); row.size()];
 
-            row.serialize(&mut row_buffer[0..])
+            row.serialize(&mut row_buf_raw)
                 .map_err(|_| PgError::MarshalFailedSerialization)?;
 
+            let row_buf_initialized =
+                unsafe { from_raw_parts(row_buf_raw.as_ptr() as *const u8, row.size()) };
+
             self.buf
-                .write_all(&row_buffer[0..])
+                .write_all(&row_buf_initialized)
                 .map_err(|_| PgError::MarshalFailedSerialization)?;
             self.buf
                 .flush()
@@ -66,13 +72,13 @@ mod test {
 
     #[test]
     fn create_segment() {
-        let path = String::from("/tmp/pegasus/test/create_segment/part1.bin");
+        let path = Path::new("/tmp/pegasus/test/create_segment/part1.bin");
 
-        if let Some(parent) = Path::new(&path).parent() {
+        if let Some(parent) = path.parent() {
             create_dir_all(parent).unwrap();
         }
 
-        if let Err(er) = remove_file(path.clone()) {
+        if let Err(er) = remove_file(path) {
             assert_eq!(ErrorKind::NotFound, er.kind());
         }
 
@@ -87,7 +93,7 @@ mod test {
 
             rows.push(row);
         }
-        let mut writer = SegmentWriter::new(path.clone(), rows.iter());
+        let mut writer = SegmentWriter::new(path, rows.iter());
         let result = writer.write_rows();
 
         assert!(result.is_ok());
