@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use crate::pg_errors::PgError;
+use crate::core::pg_errors::PgError;
 
 pub trait Marshal {
     fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), PgError>;
