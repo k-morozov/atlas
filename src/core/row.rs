@@ -5,10 +5,10 @@ use std::mem::MaybeUninit;
 use std::ops::{Add, Index};
 use std::rc::Rc;
 
-use crate::field::{Field, FieldType};
-use crate::marshal::Marshal;
-use crate::pg_errors::PgError;
-use crate::schema::Schema;
+use crate::core::field::{Field, FieldType};
+use crate::core::marshal::Marshal;
+use crate::core::pg_errors::PgError;
+use crate::core::schema::Schema;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Row {
@@ -166,9 +166,9 @@ impl<'a> IntoIterator for &'a Row {
 
 #[cfg(test)]
 mod tests {
-    use crate::field::*;
-    use crate::row::*;
-    use crate::schema::Schema;
+    use crate::core::field::*;
+    use crate::core::row::*;
+    use crate::core::schema::Schema;
 
     #[test]
     fn check_size() {

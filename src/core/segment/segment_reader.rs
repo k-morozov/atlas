@@ -4,11 +4,11 @@ use std::mem::MaybeUninit;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::field::FieldType;
-use crate::marshal::Marshal;
-use crate::pg_errors::PgError;
-use crate::row::Row;
-use crate::schema::{schema_size, Schema};
+use crate::core::field::FieldType;
+use crate::core::marshal::Marshal;
+use crate::core::pg_errors::PgError;
+use crate::core::row::Row;
+use crate::core::schema::{schema_size, Schema};
 
 struct SegmentReader {
     schema: Rc<Schema>,
@@ -60,11 +60,11 @@ mod test {
     use std::rc::Rc;
     use std::slice::from_raw_parts;
 
-    use crate::field::*;
-    use crate::marshal::Marshal;
-    use crate::row::*;
-    use crate::schema::*;
-    use crate::segment_reader::*;
+    use crate::core::field::*;
+    use crate::core::marshal::Marshal;
+    use crate::core::row::*;
+    use crate::core::schema::*;
+    use crate::core::segment::segment_reader::*;
     use std::io::ErrorKind;
     use std::path::Path;
 

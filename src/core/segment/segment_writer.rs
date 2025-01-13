@@ -1,7 +1,7 @@
-use crate::field::FieldType;
-use crate::marshal::Marshal;
-use crate::pg_errors::PgError;
-use crate::row::Row;
+use crate::core::field::FieldType;
+use crate::core::marshal::Marshal;
+use crate::core::pg_errors::PgError;
+use crate::core::row::Row;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::iter::Iterator;
@@ -63,9 +63,9 @@ impl<'a> SegmentWriter<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::field::{Field, FieldType};
-    use crate::row::RowBuilder;
-    use crate::segment_writer::*;
+    use crate::core::field::{Field, FieldType};
+    use crate::core::row::RowBuilder;
+    use crate::core::segment::segment_writer::*;
     use std::fs::{create_dir_all, remove_file};
     use std::io::ErrorKind;
     use std::path::Path;

@@ -1,5 +1,5 @@
-use crate::marshal::Marshal;
-use crate::pg_errors::PgError;
+use crate::core::marshal::Marshal;
+use crate::core::pg_errors::PgError;
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 use std::ptr::copy;
@@ -65,7 +65,7 @@ impl Marshal for Field {
 mod test {
     use std::mem::MaybeUninit;
 
-    use crate::field::*;
+    use crate::core::field::*;
 
     #[test]
     fn simple_serialize() {

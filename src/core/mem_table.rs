@@ -1,5 +1,5 @@
-use crate::pg_errors::PgError;
-use crate::row::Row;
+use crate::core::pg_errors::PgError;
+use crate::core::row::Row;
 use std::iter::IntoIterator;
 
 struct MemTable {
@@ -38,9 +38,9 @@ impl MemTable {
         self.rows.sort();
         self.current_size += 1;
 
-        if self.current_size() == self.max_table_size() {
-            let _ = self.flush();
-        }
+        // if self.current_size() == self.max_table_size() {
+        //     let _ = self.flush();
+        // }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Row> {
@@ -52,7 +52,7 @@ impl MemTable {
     }
 
     fn flush(&mut self) -> Result<(), PgError> {
-        Ok(())
+        unreachable!()
     }
 }
 
@@ -89,9 +89,9 @@ impl<'a> IntoIterator for &'a MemTable {
 
 #[cfg(test)]
 mod tests {
-    use crate::field::*;
-    use crate::mem_table;
-    use crate::row::{Row, RowBuilder};
+    use crate::core::field::*;
+    use crate::core::mem_table;
+    use crate::core::row::{Row, RowBuilder};
     use std::iter::zip;
 
     fn create_row(fields: &[Field]) -> Row {

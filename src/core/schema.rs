@@ -1,4 +1,4 @@
-use crate::field::Field;
+use crate::core::field::Field;
 
 pub type Schema = Vec<Field>;
 
