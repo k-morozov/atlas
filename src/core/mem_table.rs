@@ -2,7 +2,7 @@ use crate::core::pg_errors::PgError;
 use crate::core::row::Row;
 use std::iter::IntoIterator;
 
-struct MemTable {
+pub struct MemTable {
     rows: Vec<Row>,
     current_size: usize,
     max_table_size: usize,
@@ -56,7 +56,7 @@ impl MemTable {
     }
 }
 
-struct MemTableIterator<'a> {
+pub struct MemTableIterator<'a> {
     table: &'a MemTable,
     pos: usize,
 }
