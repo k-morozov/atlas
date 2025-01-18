@@ -9,7 +9,7 @@ use std::mem::MaybeUninit;
 use std::path::Path;
 use std::slice::from_raw_parts;
 
-struct SegmentWriter<'a> {
+pub struct SegmentWriter<'a> {
     buf: BufWriter<File>,
     row_it: Option<Box<dyn Iterator<Item = &'a Row> + 'a>>,
 }
@@ -20,8 +20,12 @@ impl<'a> SegmentWriter<'a> {
         T: Iterator<Item = &'a Row> + 'a,
     {
         let result_create = File::create(path_to_segment);
-        if let Err(_) = result_create {
-            panic!("Failed to create new part");
+        if let Err(er) = result_create {
+            panic!(
+                "Failed to create new part. path={}, error= {}",
+                path_to_segment.display(),
+                er
+            );
         };
 
         Self {

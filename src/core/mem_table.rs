@@ -1,5 +1,6 @@
 use crate::core::pg_errors::PgError;
 use crate::core::row::Row;
+
 use std::iter::IntoIterator;
 
 pub struct MemTable {
@@ -37,10 +38,6 @@ impl MemTable {
         self.rows.push(row);
         self.rows.sort();
         self.current_size += 1;
-
-        // if self.current_size() == self.max_table_size() {
-        //     let _ = self.flush();
-        // }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Row> {
@@ -51,8 +48,9 @@ impl MemTable {
         self.rows.get(index)
     }
 
-    fn flush(&mut self) -> Result<(), PgError> {
-        unreachable!()
+    pub fn clear(&mut self) {
+        self.rows.clear();
+        self.current_size = 0;
     }
 }
 
