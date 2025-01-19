@@ -5,12 +5,12 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::core::entry::Entry;
-use crate::core::field::FieldType;
+use crate::core::field::{Field, FieldType};
 use crate::core::marshal::Marshal;
 use crate::core::pg_errors::PgError;
 use crate::core::schema::{schema_size, Schema};
 
-struct SegmentReader {
+pub struct SegmentReader {
     schema: Rc<Schema>,
     schema_size: usize,
     part_file: File,
@@ -25,21 +25,22 @@ impl SegmentReader {
         }
     }
 
-    pub fn read(&self) -> Result<Vec<Entry>, PgError> {
+    pub fn read(&self, key: &Field) -> Result<Option<Field>, PgError> {
         let mut part_buffer = BufReader::new(&self.part_file);
-        let mut result = Vec::<Entry>::new();
 
         loop {
-            let mut row_buffer = vec![0u8; self.schema_size];
-            match part_buffer.read_exact(&mut row_buffer) {
+            let mut entry_buffer = vec![0u8; self.schema_size];
+            match part_buffer.read_exact(&mut entry_buffer) {
                 Ok(_) => {
                     let mut entry = Entry::new(self.schema[0].clone(), self.schema[1].clone());
 
                     entry
-                        .deserialize(&row_buffer)
+                        .deserialize(&entry_buffer)
                         .map_err(|_| PgError::MarshalFailedDeserialization)?;
 
-                    result.push(entry);
+                    if entry.get_key() == key {
+                        return Ok(Some(entry.get_value().clone()));
+                    }
                 }
 
                 Err(e) if e.kind() == UnexpectedEof => break,
@@ -49,7 +50,7 @@ impl SegmentReader {
             }
         }
 
-        Ok(result)
+        Ok(None)
     }
 }
 
@@ -121,12 +122,18 @@ mod test {
 
         let reader = SegmentReader::new(path, schema.clone());
 
-        let result = reader.read();
+        let key = Field::new(FieldType::Int32(43));
+        let result = reader.read(&key);
         assert!(result.is_ok());
 
         let actual = result.unwrap();
+        assert!(actual.is_some());
 
-        assert_eq!(actual[0], entry1);
-        assert_eq!(actual[1], entry2);
+        assert_eq!(actual.unwrap(), Field::new(FieldType::Int32(430)));
+
+        let key = Field::new(FieldType::Int32(431));
+        let result = reader.read(&key);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
     }
 }

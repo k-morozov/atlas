@@ -1,6 +1,7 @@
 use std::iter::IntoIterator;
 
 use crate::core::entry::Entry;
+use crate::core::field::Field;
 
 pub struct MemTable {
     rows: Vec<Entry>,
@@ -33,11 +34,18 @@ impl MemTable {
         self.current_size += 1;
     }
 
+    pub fn get_value(&self, key: &Field) -> Option<Field> {
+        self.rows
+            .iter()
+            .find(|entry| entry.get_key() == key)
+            .map(|entry| entry.value.clone())
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Entry> {
         self.rows.iter()
     }
 
-    pub fn get(&self, index: usize) -> Option<&Entry> {
+    fn get(&self, index: usize) -> Option<&Entry> {
         self.rows.get(index)
     }
 
