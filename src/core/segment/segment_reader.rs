@@ -4,10 +4,10 @@ use std::mem::MaybeUninit;
 use std::path::Path;
 use std::rc::Rc;
 
+use crate::core::entry::Entry;
 use crate::core::field::FieldType;
 use crate::core::marshal::Marshal;
 use crate::core::pg_errors::PgError;
-use crate::core::row::Row;
 use crate::core::schema::{schema_size, Schema};
 
 struct SegmentReader {
@@ -25,21 +25,21 @@ impl SegmentReader {
         }
     }
 
-    pub fn read(&self) -> Result<Vec<Row>, PgError> {
+    pub fn read(&self) -> Result<Vec<Entry>, PgError> {
         let mut part_buffer = BufReader::new(&self.part_file);
-        let mut result = Vec::<Row>::new();
+        let mut result = Vec::<Entry>::new();
 
         loop {
             let mut row_buffer = vec![0u8; self.schema_size];
             match part_buffer.read_exact(&mut row_buffer) {
                 Ok(_) => {
-                    let mut row = Row::new(self.schema.len());
-                    row.set_schema(self.schema.clone())?;
+                    let mut entry = Entry::new(self.schema[0].clone(), self.schema[1].clone());
 
-                    row.deserialize(&row_buffer)
+                    entry
+                        .deserialize(&row_buffer)
                         .map_err(|_| PgError::MarshalFailedDeserialization)?;
 
-                    result.push(row);
+                    result.push(entry);
                 }
 
                 Err(e) if e.kind() == UnexpectedEof => break,
@@ -56,19 +56,19 @@ impl SegmentReader {
 #[cfg(test)]
 mod test {
     use std::fs::*;
+    use std::io::ErrorKind;
     use std::io::{BufWriter, Write};
+    use std::path::Path;
     use std::rc::Rc;
     use std::slice::from_raw_parts;
 
+    use crate::core::entry::*;
     use crate::core::field::*;
     use crate::core::marshal::Marshal;
-    use crate::core::row::*;
     use crate::core::schema::*;
     use crate::core::segment::segment_reader::*;
-    use std::io::ErrorKind;
-    use std::path::Path;
 
-    fn create_part(path: &Path, rows: &Vec<Row>) {
+    fn create_part(path: &Path, rows: &Vec<Entry>) {
         if let Some(parent) = path.parent() {
             create_dir_all(parent).unwrap();
         }
@@ -102,29 +102,22 @@ mod test {
             Field::new(FieldType::Int32(0)),
         ]);
 
-        let mut row1 = RowBuilder::new(2)
-            .add_field(Field::new(FieldType::Int32(42)))
-            .add_field(Field::new(FieldType::Int32(33)))
-            .build()
-            .unwrap();
+        let entry1 = Entry::new(
+            Field::new(FieldType::Int32(42)),
+            Field::new(FieldType::Int32(420)),
+        );
 
-        let mut row2 = RowBuilder::new(2)
-            .add_field(Field::new(FieldType::Int32(142)))
-            .add_field(Field::new(FieldType::Int32(133)))
-            .build()
-            .unwrap();
+        let entry2 = Entry::new(
+            Field::new(FieldType::Int32(43)),
+            Field::new(FieldType::Int32(430)),
+        );
 
-        let r = row1.set_schema(schema.clone());
-        assert!(r.is_ok());
-        let r = row2.set_schema(schema.clone());
-        assert!(r.is_ok());
-
-        let mut rows = Vec::new();
-        rows.push(row1.clone());
-        rows.push(row2.clone());
+        let mut entries = Vec::new();
+        entries.push(entry1.clone());
+        entries.push(entry2.clone());
 
         let path = Path::new("/tmp/kvs/test/simple_segment_reader/part1.bin");
-        create_part(path, &rows);
+        create_part(path, &entries);
 
         let reader = SegmentReader::new(path, schema.clone());
 
@@ -133,7 +126,7 @@ mod test {
 
         let actual = result.unwrap();
 
-        assert_eq!(actual[0], row1);
-        assert_eq!(actual[1], row2);
+        assert_eq!(actual[0], entry1);
+        assert_eq!(actual[1], entry2);
     }
 }
