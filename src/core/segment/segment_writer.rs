@@ -76,7 +76,7 @@ mod test {
 
     #[test]
     fn create_segment() {
-        let path = Path::new("/tmp/pegasus/test/create_segment/part1.bin");
+        let path = Path::new("/tmp/kvs/test/create_segment/part1.bin");
 
         if let Some(parent) = path.parent() {
             create_dir_all(parent).unwrap();
