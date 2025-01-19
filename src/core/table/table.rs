@@ -1,7 +1,8 @@
 use crate::core::entry::Entry;
+use crate::core::field::Field;
 use crate::core::pg_errors::PgError;
 
 pub trait Table {
-    fn write(&mut self, row: Entry) -> Result<(), PgError>;
-    fn read(&self) -> Result<Entry, PgError>;
+    fn write(&mut self, entry: Entry) -> Result<(), PgError>;
+    fn read(&self, key: Field) -> Result<Option<Field>, PgError>;
 }

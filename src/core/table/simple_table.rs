@@ -1,16 +1,21 @@
 use std::fs::create_dir_all;
 use std::path::Path;
+use std::rc::Rc;
 
 use super::table::Table;
 use crate::core::entry::Entry;
+use crate::core::field::{Field, FieldType};
 use crate::core::mem_table::MemTable;
 use crate::core::pg_errors::PgError;
+use crate::core::schema::Schema;
+use crate::core::segment::segment_reader::SegmentReader;
 use crate::core::segment::segment_writer::SegmentWriter;
-use crate::core::table::config::DEFAULT_TABLES_PATH;
+use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE};
 
 struct SimpleTable {
     table_path: String,
     mem_table: MemTable,
+    schema: Rc<Schema>,
 }
 
 impl SimpleTable {
@@ -19,9 +24,15 @@ impl SimpleTable {
 
         create_dir_all(Path::new(&path)).unwrap();
 
+        let schema = Rc::new(vec![
+            Field::new(FieldType::Int32(0)),
+            Field::new(FieldType::Int32(0)),
+        ]);
+
         Self {
             table_path: path,
-            mem_table: MemTable::new(4),
+            mem_table: MemTable::new(DETAULT_MEM_TABLE_SIZE),
+            schema,
         }
     }
 }
@@ -45,8 +56,15 @@ impl Table for SimpleTable {
         Ok(())
     }
 
-    fn read(&self) -> Result<Entry, PgError> {
-        unreachable!()
+    fn read(&self, key: Field) -> Result<Option<Field>, PgError> {
+        if let Some(value) = self.mem_table.get_value(&key) {
+            return Ok(Some(value));
+        }
+        let table_path = &self.table_path;
+        let segment_path = format!("{table_path}/segment1.bin");
+        let reader = SegmentReader::new(Path::new(&segment_path), self.schema.clone());
+
+        reader.read(&key)
     }
 }
 
@@ -60,12 +78,18 @@ mod tests {
     fn simple_check() {
         let mut table = SimpleTable::new();
 
-        for index in 1..5 {
+        for index in 0..=DETAULT_MEM_TABLE_SIZE {
             let entry = Entry::new(
-                Field::new(FieldType::Int32(index)),
-                Field::new(FieldType::Int32(index * 10)),
+                Field::new(FieldType::Int32(index as i32)),
+                Field::new(FieldType::Int32((index as i32) * 10)),
             );
             table.write(entry).unwrap();
+        }
+
+        for index in 0..=DETAULT_MEM_TABLE_SIZE {
+            let result = table.read(Field::new(FieldType::Int32(index as i32))).unwrap();
+            assert!(result.is_some(), "index={}", index);
+            assert_eq!(result.unwrap(), Field::new(FieldType::Int32((index as i32) * 10)));
         }
     }
 }

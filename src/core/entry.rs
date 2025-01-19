@@ -7,8 +7,8 @@ use crate::core::pg_errors::PgError;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Entry {
-    key: Field,
-    value: Field,
+    pub key: Field,
+    pub value: Field,
 }
 
 impl Entry {
