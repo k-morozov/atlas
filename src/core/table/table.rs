@@ -1,7 +1,7 @@
-use crate::core::row::Row;
 use crate::core::pg_errors::PgError;
+use crate::core::row::Row;
 
 pub trait Table {
-    fn write(row: Row) -> Result<(), PgError>;
-    fn read() -> Result<Row, PgError>;
+    fn write(&mut self, row: Row) -> Result<(), PgError>;
+    fn read(&self) -> Result<Row, PgError>;
 }
