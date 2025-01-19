@@ -15,7 +15,7 @@ struct SimpleTable {
 
 impl SimpleTable {
     pub fn new() -> Self {
-        let path = String::from(DEFAULT_TABLES_PATH.to_string() + "simple_table/");
+        let path = String::from(DEFAULT_TABLES_PATH.to_string() + "simple_table");
 
         create_dir_all(Path::new(&path)).unwrap();
 
@@ -32,7 +32,8 @@ impl Table for SimpleTable {
 
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
             {
-                let segment_path = self.table_path.clone() + "segment1.bin";
+                let table_path = &self.table_path;
+                let segment_path = format!("{table_path}/segment1.bin");
                 let mut writer =
                     SegmentWriter::new(Path::new(&segment_path), self.mem_table.iter());
                 writer.write_rows()?;
