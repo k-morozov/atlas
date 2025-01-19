@@ -123,7 +123,7 @@ mod test {
         rows.push(row1.clone());
         rows.push(row2.clone());
 
-        let path = Path::new("/tmp/pegasus/test/simple_segment_reader/part1.bin");
+        let path = Path::new("/tmp/kvs/test/simple_segment_reader/part1.bin");
         create_part(path, &rows);
 
         let reader = SegmentReader::new(path, schema.clone());
