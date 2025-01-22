@@ -7,4 +7,5 @@ pub enum PgError {
     MarshalFailedDeserialization,
     RowAlreadyContainsSchema,
     NoSchemaInRow,
+    FailedCreateTableDirs,
 }

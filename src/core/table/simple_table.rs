@@ -1,4 +1,4 @@
-use std::fs::create_dir_all;
+use std::fs::{create_dir_all, read_dir};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -8,37 +8,71 @@ use crate::core::field::{Field, FieldType};
 use crate::core::mem_table::MemTable;
 use crate::core::pg_errors::PgError;
 use crate::core::schema::Schema;
-use crate::core::segment::{
-    segment_id::SegmentID, segment_reader::SegmentReader, segment_writer::SegmentWriter,
-};
+use crate::core::segment::{segment_reader::SegmentReader, segment_writer::SegmentWriter};
 use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE};
+use crate::core::table::metadata;
 
 struct SimpleTable {
     table_path: String,
     mem_table: MemTable,
     schema: Rc<Schema>,
-    segment_id: SegmentID,
+    metadata: metadata::TableMetadata,
     segments: Vec<String>,
 }
 
 impl SimpleTable {
     pub fn new() -> Self {
-        let path = String::from(DEFAULT_TABLES_PATH.to_string() + "simple_table");
+        let table_path = String::from(DEFAULT_TABLES_PATH.to_string() + "simple_table");
+        if let Err(_) = SimpleTable::create_dirs(&table_path) {
+            panic!("Faield create table dirs")
+        }
 
-        create_dir_all(Path::new(&path)).unwrap();
+        let segments = SimpleTable::get_segment_names(&table_path);
+        if let Err(_) = segments {
+            panic!("Faield read segments")
+        }
+
+        let segments = segments.unwrap();
 
         let schema = Rc::new(vec![
             Field::new(FieldType::Int32(0)),
             Field::new(FieldType::Int32(0)),
         ]);
 
+        let metadata_path = format!("{}{}", table_path, "/metadata");
+        let metadata = metadata::TableMetadata::from_file(Path::new(&metadata_path));
+
         Self {
-            table_path: path,
             mem_table: MemTable::new(DETAULT_MEM_TABLE_SIZE),
-            segment_id: SegmentID::new(),
-            segments: Vec::new(),
+            segments,
+            table_path,
+            metadata,
             schema,
         }
+    }
+
+    fn create_dirs(table_path: &str) -> Result<(), PgError> {
+        create_dir_all(Path::new(table_path)).map_err(|_| PgError::FailedCreateTableDirs)?;
+        let segment_dir = format!("{table_path}/segment");
+        create_dir_all(Path::new(&segment_dir)).map_err(|_| PgError::FailedCreateTableDirs)?;
+
+        Ok(())
+    }
+
+    fn get_segment_names(table_path: &str) -> Result<Vec<String>, PgError> {
+        let mut segments = Vec::new();
+        let segment_dir = format!("{table_path}/segment");
+
+        for a in read_dir(segment_dir).map_err(|_| PgError::FailedCreateTableDirs)? {
+            match a {
+                Ok(entry) => {
+                    segments.push(entry.path().to_str().unwrap().to_string());
+                }
+                Err(_) => {}
+            }
+        }
+
+        Ok(segments)
     }
 }
 
@@ -49,14 +83,16 @@ impl Table for SimpleTable {
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
             {
                 let table_path = &self.table_path;
-                let next_segment_id = self.segment_id.generate();
-                let segment_path = format!("{table_path}/segment_{:07}.bin", next_segment_id);
+                let next_segment_id = self.metadata.segment_id.get_and_next();
+                let segment_path =
+                    format!("{table_path}/segment/segment_{:07}.bin", next_segment_id);
                 let mut writer =
                     SegmentWriter::new(Path::new(&segment_path), self.mem_table.iter());
                 writer.write_entries()?;
                 self.segments.push(segment_path);
             }
-
+            let metadata_path = format!("{}{}", self.table_path, "/metadata");
+            self.metadata.sync_disk(Path::new(&metadata_path));
             self.mem_table.clear();
         }
 
@@ -139,6 +175,44 @@ mod tests {
         }
 
         for index in 0..3 * DETAULT_MEM_TABLE_SIZE {
+            let result = table
+                .read(Field::new(FieldType::Int32(index as i32)))
+                .unwrap();
+            assert_eq!(
+                result.unwrap(),
+                Field::new(FieldType::Int32((index as i32) * 10))
+            );
+        }
+    }
+
+    #[test]
+    fn test_some_segments_with_restart() {
+        prepare_dir();
+
+        {
+            let mut table = SimpleTable::new();
+
+            for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
+                let entry = Entry::new(
+                    Field::new(FieldType::Int32(index as i32)),
+                    Field::new(FieldType::Int32((index as i32) * 10)),
+                );
+                table.write(entry).unwrap();
+            }
+
+            for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
+                let result = table
+                    .read(Field::new(FieldType::Int32(index as i32)))
+                    .unwrap();
+                assert_eq!(
+                    result.unwrap(),
+                    Field::new(FieldType::Int32((index as i32) * 10))
+                );
+            }
+        }
+
+        let table = SimpleTable::new();
+        for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
             let result = table
                 .read(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
