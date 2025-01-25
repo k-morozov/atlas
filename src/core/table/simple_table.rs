@@ -32,7 +32,10 @@ fn get_segments(table_path: &Path) -> Result<Segments, PgError> {
         .map(|entry| {
             match entry {
                 Ok(entry) => {
-                    return Segment::new(table_path, entry.path().to_str().unwrap());
+                    return Segment::new(
+                        table_path,
+                        entry.path().file_name().unwrap().to_str().unwrap(),
+                    );
                 }
                 Err(er) => {
                     panic!("get_segment_names failed with error={}", er);
@@ -126,10 +129,9 @@ impl Table for SimpleTable {
         }
 
         for segment in &self.segments {
-            let reader = SegmentReader::new(
-                Segment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
-                self.schema.clone(),
-            );
+            let name = segment.get_name();
+            let x = Segment::get_path(self.table_path.as_path(), name);
+            let reader = SegmentReader::new(x.as_path(), self.schema.clone());
             if let Some(r) = reader.read(&key)? {
                 return Ok(Some(r));
             }
