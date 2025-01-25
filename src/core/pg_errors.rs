@@ -8,4 +8,5 @@ pub enum PgError {
     RowAlreadyContainsSchema,
     NoSchemaInRow,
     FailedCreateTableDirs,
+    FailedReadSegmentNames,
 }

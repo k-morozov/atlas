@@ -20,14 +20,42 @@ struct SimpleTable {
     segments: Vec<String>,
 }
 
+fn create_dirs(table_path: &str) -> Result<(), PgError> {
+    create_dir_all(Path::new(table_path)).map_err(|_| PgError::FailedCreateTableDirs)?;
+    let segment_dir = format!("{table_path}/segment");
+    create_dir_all(Path::new(&segment_dir)).map_err(|_| PgError::FailedCreateTableDirs)?;
+
+    Ok(())
+}
+
+fn get_segment_names(table_path: &str) -> Result<Vec<String>, PgError> {
+    let segment_dir = format!("{table_path}/segment");
+
+    let segment_names = read_dir(segment_dir)
+        .map_err(|_| PgError::FailedReadSegmentNames)?
+        .map(|entry| {
+            match entry {
+                Ok(entry) => {
+                    return entry.path().to_str().unwrap().to_string();
+                }
+                Err(er) => {
+                    panic!("get_segment_names failed with error={}", er);
+                },
+            };
+        })
+        .collect::<Vec<String>>();
+    
+    Ok(segment_names)
+}
+
 impl SimpleTable {
     pub fn new() -> Self {
         let table_path = String::from(DEFAULT_TABLES_PATH.to_string() + "simple_table");
-        if let Err(_) = SimpleTable::create_dirs(&table_path) {
+        if let Err(_) = create_dirs(&table_path) {
             panic!("Faield create table dirs")
         }
 
-        let segments = SimpleTable::get_segment_names(&table_path);
+        let segments = get_segment_names(&table_path);
         if let Err(_) = segments {
             panic!("Faield read segments")
         }
@@ -49,30 +77,6 @@ impl SimpleTable {
             metadata,
             schema,
         }
-    }
-
-    fn create_dirs(table_path: &str) -> Result<(), PgError> {
-        create_dir_all(Path::new(table_path)).map_err(|_| PgError::FailedCreateTableDirs)?;
-        let segment_dir = format!("{table_path}/segment");
-        create_dir_all(Path::new(&segment_dir)).map_err(|_| PgError::FailedCreateTableDirs)?;
-
-        Ok(())
-    }
-
-    fn get_segment_names(table_path: &str) -> Result<Vec<String>, PgError> {
-        let mut segments = Vec::new();
-        let segment_dir = format!("{table_path}/segment");
-
-        for a in read_dir(segment_dir).map_err(|_| PgError::FailedCreateTableDirs)? {
-            match a {
-                Ok(entry) => {
-                    segments.push(entry.path().to_str().unwrap().to_string());
-                }
-                Err(_) => {}
-            }
-        }
-
-        Ok(segments)
     }
 }
 

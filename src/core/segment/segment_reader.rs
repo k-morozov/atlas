@@ -1,11 +1,10 @@
 use std::fs::File;
 use std::io::{BufReader, ErrorKind::UnexpectedEof, Read};
-use std::mem::MaybeUninit;
 use std::path::Path;
 use std::rc::Rc;
 
 use crate::core::entry::Entry;
-use crate::core::field::{Field, FieldType};
+use crate::core::field::Field;
 use crate::core::marshal::Marshal;
 use crate::core::pg_errors::PgError;
 use crate::core::schema::{schema_size, Schema};
@@ -62,11 +61,11 @@ mod test {
     use std::path::Path;
     use std::rc::Rc;
     use std::slice::from_raw_parts;
+    use std::mem::MaybeUninit;
 
     use crate::core::entry::*;
     use crate::core::field::*;
     use crate::core::marshal::Marshal;
-    use crate::core::schema::*;
     use crate::core::segment::segment_reader::*;
 
     fn create_part(path: &Path, rows: &Vec<Entry>) {

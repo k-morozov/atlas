@@ -59,7 +59,7 @@ impl TableMetadata {
     }
 
     pub fn sync_disk(&self, metadata_path: &Path) {
-        let mut options = OpenOptions::new();
+        let mut options: OpenOptions = OpenOptions::new();
         options.write(true).create(true);
 
         match options.open(metadata_path) {
