@@ -1,5 +1,4 @@
 use crate::core::entry::Entry;
-use crate::core::field::FieldType;
 use crate::core::marshal::Marshal;
 use crate::core::pg_errors::PgError;
 use std::fs::File;
