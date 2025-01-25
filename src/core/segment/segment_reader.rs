@@ -17,8 +17,16 @@ pub struct SegmentReader {
 
 impl SegmentReader {
     pub fn new(path_to_part: &Path, schema: Rc<Schema>) -> Self {
+        let fd = match File::open(path_to_part) {
+            Ok(fd) => fd,
+            Err(er) => panic!(
+                "SegmentReader: error={}, path={}",
+                er,
+                path_to_part.display()
+            ),
+        };
         SegmentReader {
-            part_file: File::open(path_to_part).unwrap(),
+            part_file: fd,
             schema_size: schema_size(&schema),
             schema,
         }

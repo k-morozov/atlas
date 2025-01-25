@@ -45,7 +45,11 @@ impl TableMetadata {
                             match data.parse::<u64>() {
                                 Ok(id) => metadata.segment_id = SegmentID::from(id),
                                 Err(_) => {
-                                    panic!("broken metadata: {}", data);
+                                    panic!(
+                                        "broken metadata: {}, path={}",
+                                        data,
+                                        metadata_path.display()
+                                    );
                                 }
                             }
                         }

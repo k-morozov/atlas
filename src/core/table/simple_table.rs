@@ -1,4 +1,4 @@
-use std::fs::{create_dir_all, read_dir};
+use std::fs::{create_dir_all, read_dir, remove_file};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -63,7 +63,7 @@ struct SimpleTable {
 
 impl SimpleTable {
     pub fn new(table_name: &str) -> Self {
-        let table_path = PathBuf::from(&String::from(DEFAULT_TABLES_PATH.to_string() + table_name));
+        let table_path = SimpleTable::table_path(table_name);
 
         if let Err(_) = create_dirs(table_path.as_path()) {
             panic!("Faield create table dirs")
@@ -93,10 +93,14 @@ impl SimpleTable {
             schema,
         }
     }
+
+    pub fn table_path(table_name: &str) -> PathBuf {
+        PathBuf::from(&String::from(DEFAULT_TABLES_PATH.to_string() + table_name))
+    }
 }
 
 impl Table for SimpleTable {
-    fn write(&mut self, entry: Entry) -> Result<(), PgError> {
+    fn put(&mut self, entry: Entry) -> Result<(), PgError> {
         self.mem_table.append(entry);
 
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
@@ -111,7 +115,7 @@ impl Table for SimpleTable {
                         self.mem_table = MemTable::new(DETAULT_MEM_TABLE_SIZE);
                     }
                     Err(er) => {
-                        panic!("Failed to write the segment")
+                        panic!("Failed to put the segment")
                     }
                 }
             }
@@ -123,15 +127,16 @@ impl Table for SimpleTable {
         Ok(())
     }
 
-    fn read(&self, key: Field) -> Result<Option<Field>, PgError> {
+    fn get(&self, key: Field) -> Result<Option<Field>, PgError> {
         if let Some(value) = self.mem_table.get_value(&key) {
             return Ok(Some(value));
         }
 
         for segment in &self.segments {
-            let name = segment.get_name();
-            let x = Segment::get_path(self.table_path.as_path(), name);
-            let reader = SegmentReader::new(x.as_path(), self.schema.clone());
+            let reader = SegmentReader::new(
+                Segment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
+                self.schema.clone(),
+            );
             if let Some(r) = reader.read(&key)? {
                 return Ok(Some(r));
             }
@@ -143,7 +148,7 @@ impl Table for SimpleTable {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::remove_file;
+    use std::fs::{remove_dir_all, remove_file};
     use std::io::ErrorKind;
 
     use super::*;
@@ -160,74 +165,91 @@ mod tests {
         }
     }
 
+    fn drop_dir(path: &Path) {
+        if let Err(er) = remove_dir_all(path) {
+            match er.kind() {
+                ErrorKind::NotFound | ErrorKind::IsADirectory => return,
+                _ => panic!("unexpected errror from remove_dir_all: {}", er),
+            }
+        }
+    }
+
     #[test]
     fn test_segment() {
         prepare_dir();
 
-        let mut table = SimpleTable::new("test_table");
+        let table_name = "test_table_segment";
+        let mut table = SimpleTable::new(table_name);
 
         for index in 0..=DETAULT_MEM_TABLE_SIZE {
             let entry = Entry::new(
                 Field::new(FieldType::Int32(index as i32)),
                 Field::new(FieldType::Int32((index as i32) * 10)),
             );
-            table.write(entry).unwrap();
+            table.put(entry).unwrap();
         }
 
         for index in 0..=DETAULT_MEM_TABLE_SIZE {
             let result = table
-                .read(Field::new(FieldType::Int32(index as i32)))
+                .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
                 Field::new(FieldType::Int32((index as i32) * 10))
             );
         }
+
+        drop_dir(SimpleTable::table_path(table_name).as_path());
     }
 
     #[test]
     fn test_some_segments() {
         prepare_dir();
 
-        let mut table = SimpleTable::new("test_table");
+        let table_name = "test_table_some_segments";
+        let mut table = SimpleTable::new(table_name);
 
         for index in 0..3 * DETAULT_MEM_TABLE_SIZE {
             let entry = Entry::new(
                 Field::new(FieldType::Int32(index as i32)),
                 Field::new(FieldType::Int32((index as i32) * 10)),
             );
-            table.write(entry).unwrap();
+            table.put(entry).unwrap();
         }
 
         for index in 0..3 * DETAULT_MEM_TABLE_SIZE {
             let result = table
-                .read(Field::new(FieldType::Int32(index as i32)))
+                .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
                 Field::new(FieldType::Int32((index as i32) * 10))
             );
         }
+
+        drop_dir(SimpleTable::table_path(table_name).as_path());
     }
 
     #[test]
     fn test_some_segments_with_restart() {
         prepare_dir();
 
+        let table_name = "test_table_some_segments_with_restart";
+
         {
-            let mut table = SimpleTable::new("test_table");
+            let mut table = SimpleTable::new(table_name);
 
             for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
                 let entry = Entry::new(
                     Field::new(FieldType::Int32(index as i32)),
                     Field::new(FieldType::Int32((index as i32) * 10)),
                 );
-                table.write(entry).unwrap();
+                table.put(entry).unwrap();
             }
 
             for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
                 let result = table
-                    .read(Field::new(FieldType::Int32(index as i32)))
+                    .get(Field::new(FieldType::Int32(index as i32)))
                     .unwrap();
                 assert_eq!(
                     result.unwrap(),
@@ -236,15 +258,17 @@ mod tests {
             }
         }
 
-        let table = SimpleTable::new("test_table");
+        let table = SimpleTable::new(table_name);
         for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
             let result = table
-                .read(Field::new(FieldType::Int32(index as i32)))
+                .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
                 Field::new(FieldType::Int32((index as i32) * 10))
             );
         }
+
+        drop_dir(SimpleTable::table_path(table_name).as_path());
     }
 }
