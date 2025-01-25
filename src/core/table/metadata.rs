@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::Path;
 
-use crate::core::segment::segment_id::SegmentID;
+use crate::core::segment::id::SegmentID;
 
 pub struct TableMetadata {
     pub segment_id: SegmentID,

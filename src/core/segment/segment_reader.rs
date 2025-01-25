@@ -58,10 +58,10 @@ mod test {
     use std::fs::*;
     use std::io::ErrorKind;
     use std::io::{BufWriter, Write};
+    use std::mem::MaybeUninit;
     use std::path::Path;
     use std::rc::Rc;
     use std::slice::from_raw_parts;
-    use std::mem::MaybeUninit;
 
     use crate::core::entry::*;
     use crate::core::field::*;
