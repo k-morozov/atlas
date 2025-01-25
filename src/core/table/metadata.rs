@@ -1,23 +1,39 @@
 use std::fs::exists;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::core::segment::id::SegmentID;
 
 pub struct TableMetadata {
     pub segment_id: SegmentID,
+    metadata_path: PathBuf,
 }
 
 impl TableMetadata {
-    pub fn new() -> Self {
+    pub fn new(table_path: &Path) -> Self {
         TableMetadata {
             segment_id: SegmentID::new(),
+            metadata_path: TableMetadata::make_path(table_path),
         }
     }
 
+    pub fn get_metadata_path(&self) -> &Path {
+        &self.metadata_path
+    }
+
+    pub fn make_path(table_path: &Path) -> PathBuf {
+        let mut metadata_path = table_path.to_path_buf();
+        metadata_path.push("metadata");
+
+        metadata_path
+    }
+
     pub fn from_file(metadata_path: &Path) -> Self {
-        let mut metadata = TableMetadata::new();
+        let mut metadata = TableMetadata {
+            segment_id: SegmentID::new(),
+            metadata_path: metadata_path.to_path_buf(),
+        };
 
         match exists(metadata_path) {
             Ok(metadata_exists) => {

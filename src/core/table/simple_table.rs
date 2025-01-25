@@ -1,5 +1,5 @@
 use std::fs::{create_dir_all, read_dir};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use super::table::Table;
@@ -14,25 +14,25 @@ use crate::core::segment::{
     segment_writer::SegmentWriter,
 };
 use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE};
-use crate::core::table::metadata;
+use crate::core::table::metadata::TableMetadata;
 
-fn create_dirs(table_path: &str) -> Result<(), PgError> {
+fn create_dirs(table_path: &Path) -> Result<(), PgError> {
     create_dir_all(Path::new(table_path)).map_err(|_| PgError::FailedCreateTableDirs)?;
-    let segment_dir = format!("{table_path}/segment");
+    let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
     create_dir_all(Path::new(&segment_dir)).map_err(|_| PgError::FailedCreateTableDirs)?;
 
     Ok(())
 }
 
-fn get_segments(table_path: &str) -> Result<Segments, PgError> {
-    let segment_dir = format!("{table_path}/segment");
+fn get_segments(table_path: &Path) -> Result<Segments, PgError> {
+    let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
 
     let segment_names = read_dir(segment_dir)
         .map_err(|_| PgError::FailedReadSegmentNames)?
         .map(|entry| {
             match entry {
                 Ok(entry) => {
-                    return Segment::new(entry.path().to_str().unwrap());
+                    return Segment::new(table_path, entry.path().to_str().unwrap());
                 }
                 Err(er) => {
                     panic!("get_segment_names failed with error={}", er);
@@ -46,12 +46,13 @@ fn get_segments(table_path: &str) -> Result<Segments, PgError> {
 
 struct SimpleTable {
     table_name: String,
-    table_path: String,
+    table_path: PathBuf,
+
     mem_table: MemTable,
 
     // @todo refuse to use
     schema: Rc<Schema>,
-    metadata: metadata::TableMetadata,
+    metadata: TableMetadata,
 
     // @todo possibly add to metadata
     segments: Segments,
@@ -59,12 +60,13 @@ struct SimpleTable {
 
 impl SimpleTable {
     pub fn new(table_name: &str) -> Self {
-        let table_path = String::from(DEFAULT_TABLES_PATH.to_string() + table_name);
-        if let Err(_) = create_dirs(&table_path) {
+        let table_path = PathBuf::from(&String::from(DEFAULT_TABLES_PATH.to_string() + table_name));
+
+        if let Err(_) = create_dirs(table_path.as_path()) {
             panic!("Faield create table dirs")
         }
 
-        let segments = get_segments(&table_path);
+        let segments = get_segments(table_path.as_path());
         if let Err(_) = segments {
             panic!("Faield read segments")
         }
@@ -76,15 +78,15 @@ impl SimpleTable {
             Field::new(FieldType::Int32(0)),
         ]);
 
-        let metadata_path = format!("{}{}", table_path, "/metadata");
-        let metadata = metadata::TableMetadata::from_file(Path::new(&metadata_path));
+        let metadata =
+            TableMetadata::from_file(TableMetadata::make_path(table_path.as_path()).as_path());
 
         Self {
             mem_table: MemTable::new(DETAULT_MEM_TABLE_SIZE),
             table_name: table_name.to_string(),
+            table_path: table_path.to_path_buf(),
             metadata,
             segments,
-            table_path,
             schema,
         }
     }
@@ -97,7 +99,7 @@ impl Table for SimpleTable {
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
             {
                 match Segment::create(
-                    &self.table_path,
+                    self.table_path.as_path(),
                     &mut self.metadata.segment_id,
                     &mut self.mem_table,
                 ) {
@@ -105,11 +107,13 @@ impl Table for SimpleTable {
                         self.segments.push(sg);
                         self.mem_table = MemTable::new(DETAULT_MEM_TABLE_SIZE);
                     }
-                    Err(er) => {}
+                    Err(er) => {
+                        panic!("Failed to write the segment")
+                    }
                 }
             }
-            let metadata_path = format!("{}{}", self.table_path, "/metadata");
-            self.metadata.sync_disk(Path::new(&metadata_path));
+            self.metadata
+                .sync_disk(Path::new(self.metadata.get_metadata_path()));
             self.mem_table.clear();
         }
 
@@ -122,7 +126,10 @@ impl Table for SimpleTable {
         }
 
         for segment in &self.segments {
-            let reader = SegmentReader::new(Path::new(&segment.get_name()), self.schema.clone());
+            let reader = SegmentReader::new(
+                Segment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
+                self.schema.clone(),
+            );
             if let Some(r) = reader.read(&key)? {
                 return Ok(Some(r));
             }
