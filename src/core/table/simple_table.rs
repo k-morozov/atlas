@@ -13,7 +13,7 @@ use crate::core::segment::{
     segment_reader::SegmentReader,
     segment_writer::SegmentWriter,
 };
-use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE};
+use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE, DEFAULT_SEGMENTS_LIMIT};
 use crate::core::table::metadata::TableMetadata;
 
 fn create_dirs(table_path: &Path) -> Result<(), PgError> {
@@ -113,8 +113,12 @@ impl Table for SimpleTable {
                     Ok(sg) => {
                         self.segments.push(sg);
                         self.mem_table = MemTable::new(DETAULT_MEM_TABLE_SIZE);
+
+                        if self.segments.len() == DEFAULT_SEGMENTS_LIMIT {
+                            // @todo merge
+                        }
                     }
-                    Err(er) => {
+                    Err(_er) => {
                         panic!("Failed to put the segment")
                     }
                 }
