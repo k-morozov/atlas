@@ -1,9 +1,12 @@
 use std::fs::{File, OpenOptions};
 use std::io::copy;
 
-use crate::core::segment::segment;
+use crate::core::segment::{
+    segment,
+    table::{Segments, TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL},
+};
 
-pub fn merge(dst: &mut segment::Segment, srcs: &segment::Segments) {
+pub fn merge(dst: &mut segment::Segment, srcs: &Segments) {
     let dst_path = segment::Segment::get_path(dst.get_table_path(), dst.get_name());
 
     let mut options: OpenOptions = OpenOptions::new();
@@ -39,7 +42,7 @@ pub fn merge(dst: &mut segment::Segment, srcs: &segment::Segments) {
     for src in srcs {
         let src_path = segment::Segment::get_path(src.get_table_path(), src.get_name());
         match std::fs::remove_file(src_path) {
-            Ok(_n) => {}
+            Ok(_) => {}
             Err(er) => panic!(
                 "failed remove merged segment: error={}, src={}",
                 er,
