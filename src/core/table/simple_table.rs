@@ -6,14 +6,18 @@ use super::table::Table;
 use crate::core::entry::Entry;
 use crate::core::field::{Field, FieldType};
 use crate::core::mem_table::MemTable;
+use crate::core::merge::merge::merge;
 use crate::core::pg_errors::PgError;
 use crate::core::schema::Schema;
 use crate::core::segment::{
-    segment::{Segment, Segments},
+    segment::Segment,
     segment_reader::SegmentReader,
     segment_writer::SegmentWriter,
+    table::{get_table_segments, TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL},
 };
-use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE, DEFAULT_SEGMENTS_LIMIT};
+use crate::core::table::config::{
+    DEFAULT_SEGMENTS_LIMIT, DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE,
+};
 use crate::core::table::metadata::TableMetadata;
 
 fn create_dirs(table_path: &Path) -> Result<(), PgError> {
@@ -22,29 +26,6 @@ fn create_dirs(table_path: &Path) -> Result<(), PgError> {
     create_dir_all(Path::new(&segment_dir)).map_err(|_| PgError::FailedCreateTableDirs)?;
 
     Ok(())
-}
-
-fn get_segments(table_path: &Path) -> Result<Segments, PgError> {
-    let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
-
-    let segment_names = read_dir(segment_dir)
-        .map_err(|_| PgError::FailedReadSegmentNames)?
-        .map(|entry| {
-            match entry {
-                Ok(entry) => {
-                    return Segment::new(
-                        table_path,
-                        entry.path().file_name().unwrap().to_str().unwrap(),
-                    );
-                }
-                Err(er) => {
-                    panic!("get_segment_names failed with error={}", er);
-                }
-            };
-        })
-        .collect::<Segments>();
-
-    Ok(segment_names)
 }
 
 struct SimpleTable {
@@ -58,7 +39,7 @@ struct SimpleTable {
     metadata: TableMetadata,
 
     // @todo possibly add to metadata
-    segments: Segments,
+    segments: TableSegments,
 }
 
 impl SimpleTable {
@@ -69,7 +50,7 @@ impl SimpleTable {
             panic!("Faield create table dirs")
         }
 
-        let segments = get_segments(table_path.as_path());
+        let segments = get_table_segments(table_path.as_path());
         if let Err(_) = segments {
             panic!("Faield read segments")
         }
@@ -111,11 +92,36 @@ impl Table for SimpleTable {
                     &mut self.mem_table,
                 ) {
                     Ok(sg) => {
-                        self.segments.push(sg);
+                        self.segments
+                            .entry(SEGMENTS_MIN_LEVEL)
+                            .or_insert_with(Vec::new)
+                            .push(sg);
+
                         self.mem_table = MemTable::new(DETAULT_MEM_TABLE_SIZE);
 
-                        if self.segments.len() == DEFAULT_SEGMENTS_LIMIT {
-                            // @todo merge
+                        if self.segments[&SEGMENTS_MIN_LEVEL].len() == DEFAULT_SEGMENTS_LIMIT {
+                            for merged_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
+                                let level_for_new_sg = if merged_level != SEGMENTS_MAX_LEVEL {
+                                    merged_level + 1
+                                } else {
+                                    merged_level
+                                };
+                                match Segment::for_merge(
+                                    self.table_path.as_path(),
+                                    &mut self.metadata.segment_id,
+                                    level_for_new_sg,
+                                ) {
+                                    Ok(mut merged_sg) => {
+                                        merge(&mut merged_sg, &self.segments[&merged_level]);
+                                        self.segments.get_mut(&merged_level).unwrap().clear();
+                                        self.segments
+                                            .entry(level_for_new_sg)
+                                            .or_insert_with(Vec::new)
+                                            .push(merged_sg);
+                                    }
+                                    Err(_) => panic!("Failed merge"),
+                                }
+                            }
                         }
                     }
                     Err(_er) => {
@@ -136,13 +142,15 @@ impl Table for SimpleTable {
             return Ok(Some(value));
         }
 
-        for segment in &self.segments {
-            let reader = SegmentReader::new(
-                Segment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
-                self.schema.clone(),
-            );
-            if let Some(r) = reader.read(&key)? {
-                return Ok(Some(r));
+        for (_level, segments) in &self.segments {
+            for segment in segments {
+                let reader = SegmentReader::new(
+                    Segment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
+                    self.schema.clone(),
+                );
+                if let Some(r) = reader.read(&key)? {
+                    return Ok(Some(r));
+                }
             }
         }
 
@@ -264,6 +272,62 @@ mod tests {
 
         let table = SimpleTable::new(table_name);
         for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
+            let result = table
+                .get(Field::new(FieldType::Int32(index as i32)))
+                .unwrap();
+            assert_eq!(
+                result.unwrap(),
+                Field::new(FieldType::Int32((index as i32) * 10))
+            );
+        }
+
+        drop_dir(SimpleTable::table_path(table_name).as_path());
+    }
+
+    #[test]
+    fn test_merge_sements() {
+        prepare_dir();
+
+        let table_name = "test_merge_sements";
+        let mut table = SimpleTable::new(table_name);
+
+        for index in 0..5 * DETAULT_MEM_TABLE_SIZE {
+            let entry = Entry::new(
+                Field::new(FieldType::Int32(index as i32)),
+                Field::new(FieldType::Int32((index as i32) * 10)),
+            );
+            table.put(entry).unwrap();
+        }
+
+        for index in 0..5 * DETAULT_MEM_TABLE_SIZE {
+            let result = table
+                .get(Field::new(FieldType::Int32(index as i32)))
+                .unwrap();
+            assert_eq!(
+                result.unwrap(),
+                Field::new(FieldType::Int32((index as i32) * 10))
+            );
+        }
+
+        // drop_dir(SimpleTable::table_path(table_name).as_path());
+    }
+
+    #[test]
+    fn test_merge_sements_max_level() {
+        prepare_dir();
+
+        let table_name = "test_merge_sements_max_level";
+        let mut table = SimpleTable::new(table_name);
+
+        for index in 0..64 * DETAULT_MEM_TABLE_SIZE {
+            let entry = Entry::new(
+                Field::new(FieldType::Int32(index as i32)),
+                Field::new(FieldType::Int32((index as i32) * 10)),
+            );
+            table.put(entry).unwrap();
+        }
+
+        for index in 0..64 * DETAULT_MEM_TABLE_SIZE {
             let result = table
                 .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();

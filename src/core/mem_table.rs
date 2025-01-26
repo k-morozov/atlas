@@ -4,17 +4,17 @@ use crate::core::entry::Entry;
 use crate::core::field::Field;
 
 pub struct MemTable {
-    rows: Vec<Entry>,
+    entries: Vec<Entry>,
     current_size: usize,
     max_table_size: usize,
 }
 
 impl MemTable {
     pub fn new(max_table_size: usize) -> Self {
-        let data = Vec::with_capacity(max_table_size);
+        let entries = Vec::with_capacity(max_table_size);
 
         MemTable {
-            rows: data,
+            entries: entries,
             current_size: 0,
             max_table_size,
         }
@@ -29,28 +29,28 @@ impl MemTable {
     }
 
     pub fn append(&mut self, row: Entry) {
-        self.rows.push(row);
-        self.rows.sort();
+        self.entries.push(row);
+        // self.entries.sort();
         self.current_size += 1;
     }
 
     pub fn get_value(&self, key: &Field) -> Option<Field> {
-        self.rows
+        self.entries
             .iter()
             .find(|entry| entry.get_key() == key)
             .map(|entry| entry.value.clone())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Entry> {
-        self.rows.iter()
+        self.entries.iter()
     }
 
     fn get(&self, index: usize) -> Option<&Entry> {
-        self.rows.get(index)
+        self.entries.get(index)
     }
 
     pub fn clear(&mut self) {
-        self.rows.clear();
+        self.entries.clear();
         self.current_size = 0;
     }
 }
