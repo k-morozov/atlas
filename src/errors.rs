@@ -1,5 +1,5 @@
 #[derive(Debug, PartialEq)]
-pub enum PgError {
+pub enum Error {
     RowBuilderError,
     MemTableFlushError,
     SegmentWriterFlushError,

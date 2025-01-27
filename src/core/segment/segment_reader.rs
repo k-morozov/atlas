@@ -6,8 +6,8 @@ use std::rc::Rc;
 use crate::core::entry::Entry;
 use crate::core::field::Field;
 use crate::core::marshal::Marshal;
-use crate::core::pg_errors::PgError;
 use crate::core::schema::{schema_size, Schema};
+use crate::errors::Error;
 
 pub struct SegmentReader {
     schema: Rc<Schema>,
@@ -32,7 +32,7 @@ impl SegmentReader {
         }
     }
 
-    pub fn read(&self, key: &Field) -> Result<Option<Field>, PgError> {
+    pub fn read(&self, key: &Field) -> Result<Option<Field>, Error> {
         let mut part_buffer = BufReader::new(&self.part_file);
 
         loop {
@@ -43,7 +43,7 @@ impl SegmentReader {
 
                     entry
                         .deserialize(&entry_buffer)
-                        .map_err(|_| PgError::MarshalFailedDeserialization)?;
+                        .map_err(|_| Error::MarshalFailedDeserialization)?;
 
                     if entry.get_key() == key {
                         return Ok(Some(entry.get_value().clone()));
@@ -52,7 +52,7 @@ impl SegmentReader {
 
                 Err(e) if e.kind() == UnexpectedEof => break,
                 Err(_) => {
-                    return Err(PgError::MarshalFailedDeserialization);
+                    return Err(Error::MarshalFailedDeserialization);
                 }
             }
         }
@@ -89,7 +89,7 @@ mod test {
 
         for row in rows {
             let mut row_buf_raw = vec![MaybeUninit::uninit(); row.size()];
-            let r: Result<(), PgError> = row.serialize(&mut row_buf_raw);
+            let r: Result<(), Error> = row.serialize(&mut row_buf_raw);
             assert!(r.is_ok());
 
             let row_buf_initialized =
