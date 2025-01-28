@@ -7,7 +7,7 @@ use std::slice::from_raw_parts;
 
 use crate::core::entry::Entry;
 use crate::core::marshal::Marshal;
-use crate::errors::Error;
+use crate::errors::{Error, Result};
 
 pub struct SegmentWriter<'a> {
     buf: BufWriter<File>,
@@ -35,30 +35,29 @@ impl<'a> SegmentWriter<'a> {
     }
 
     // trait Writer is more suitable?
-    pub fn write_entries(&mut self) -> Result<(), Error> {
+    pub fn write_entries(&mut self) -> Result<()> {
         if self.row_it.is_none() {
-            return Err(Error::MarshalFailedSerialization);
+            return Err(Error::InvalidData("empty rows".to_string()));
         }
         let row_it = self
             .row_it
             .take()
-            .ok_or(Error::MarshalFailedSerialization)?;
+            .ok_or(Error::InvalidData("Failed take from rows".to_string()))?;
 
         for row in row_it {
             let mut row_buf_raw = vec![MaybeUninit::uninit(); row.size()];
 
             row.serialize(&mut row_buf_raw)
-                .map_err(|_| Error::MarshalFailedSerialization)?;
+                .map_err(|_| Error::InvalidData("empty".to_string()))?;
 
             let row_buf_initialized =
                 unsafe { from_raw_parts(row_buf_raw.as_ptr() as *const u8, row.size()) };
 
             self.buf
                 .write_all(&row_buf_initialized)
-                .map_err(|_| Error::MarshalFailedSerialization)?;
-            self.buf
-                .flush()
-                .map_err(|_| Error::MarshalFailedSerialization)?;
+                .map_err(|_| Error::InvalidData("empty".to_string()))?;
+            self.buf.flush()?;
+            // .map_err(|_| Error::InvalidData)?;
         }
 
         Ok(())

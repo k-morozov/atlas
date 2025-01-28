@@ -7,7 +7,7 @@ use crate::core::entry::Entry;
 use crate::core::field::Field;
 use crate::core::marshal::Marshal;
 use crate::core::schema::{schema_size, Schema};
-use crate::errors::Error;
+use crate::errors::{Error, Result};
 
 pub struct SegmentReader {
     schema: Rc<Schema>,
@@ -32,7 +32,7 @@ impl SegmentReader {
         }
     }
 
-    pub fn read(&self, key: &Field) -> Result<Option<Field>, Error> {
+    pub fn read(&self, key: &Field) -> Result<Option<Field>> {
         let mut part_buffer = BufReader::new(&self.part_file);
 
         loop {
@@ -41,9 +41,7 @@ impl SegmentReader {
                 Ok(_) => {
                     let mut entry = Entry::new(self.schema[0].clone(), self.schema[1].clone());
 
-                    entry
-                        .deserialize(&entry_buffer)
-                        .map_err(|_| Error::MarshalFailedDeserialization)?;
+                    entry.deserialize(&entry_buffer)?;
 
                     if entry.get_key() == key {
                         return Ok(Some(entry.get_value().clone()));
@@ -51,8 +49,8 @@ impl SegmentReader {
                 }
 
                 Err(e) if e.kind() == UnexpectedEof => break,
-                Err(_) => {
-                    return Err(Error::MarshalFailedDeserialization);
+                Err(err) => {
+                    return Err(Error::IO(err.to_string()));
                 }
             }
         }
@@ -89,7 +87,7 @@ mod test {
 
         for row in rows {
             let mut row_buf_raw = vec![MaybeUninit::uninit(); row.size()];
-            let r: Result<(), Error> = row.serialize(&mut row_buf_raw);
+            let r = row.serialize(&mut row_buf_raw);
             assert!(r.is_ok());
 
             let row_buf_initialized =

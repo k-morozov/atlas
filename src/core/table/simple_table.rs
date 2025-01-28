@@ -19,9 +19,9 @@ use crate::core::table::metadata::TableMetadata;
 use crate::errors::Error;
 
 fn create_dirs(table_path: &Path) -> Result<(), Error> {
-    create_dir_all(Path::new(table_path)).map_err(|_| Error::FailedCreateTableDirs)?;
+    create_dir_all(Path::new(table_path))?;
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
-    create_dir_all(Path::new(&segment_dir)).map_err(|_| Error::FailedCreateTableDirs)?;
+    create_dir_all(Path::new(&segment_dir))?;
 
     Ok(())
 }
