@@ -7,7 +7,7 @@ use crate::core::entry::Entry;
 use crate::core::field::Field;
 use crate::core::marshal::Marshal;
 use crate::core::schema::{schema_size, Schema};
-use crate::errors::{Error, Result};
+use crate::errors::Result;
 
 pub struct SegmentReader {
     schema: Rc<Schema>,
@@ -50,7 +50,7 @@ impl SegmentReader {
 
                 Err(e) if e.kind() == UnexpectedEof => break,
                 Err(err) => {
-                    return Err(Error::IO(err.to_string()));
+                    return Err(err.into());
                 }
             }
         }
