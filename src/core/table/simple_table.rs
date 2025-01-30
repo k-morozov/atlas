@@ -14,7 +14,7 @@ use crate::core::segment::{
     segment_writer::SegmentWriter,
     table::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
 };
-use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE};
+use crate::core::table::config::{TableConfig, DEFAULT_TABLES_PATH};
 use crate::core::table::metadata::TableMetadata;
 use crate::errors::Error;
 
@@ -38,10 +38,12 @@ pub struct SimpleTable {
 
     // @todo possibly add to metadata
     segments: TableSegments,
+
+    config: TableConfig,
 }
 
 impl SimpleTable {
-    pub fn new(table_name: &str) -> Self {
+    pub fn new(table_name: &str, config: TableConfig) -> Self {
         let table_path = SimpleTable::table_path(table_name);
 
         if let Err(_) = create_dirs(table_path.as_path()) {
@@ -64,12 +66,13 @@ impl SimpleTable {
             TableMetadata::from_file(TableMetadata::make_path(table_path.as_path()).as_path());
 
         Self {
-            mem_table: MemTable::new(DETAULT_MEM_TABLE_SIZE),
+            mem_table: MemTable::new(config.mem_table_size),
             table_name: table_name.to_string(),
             table_path: table_path.to_path_buf(),
             metadata,
             segments,
             schema,
+            config,
         }
     }
 
@@ -89,7 +92,7 @@ impl SimpleTable {
                     .or_insert_with(Vec::new)
                     .push(segment_from_mem_table);
 
-                self.mem_table = MemTable::new(DETAULT_MEM_TABLE_SIZE);
+                self.mem_table = MemTable::new(self.config.mem_table_size);
             }
             Err(_er) => {
                 panic!("Failed to put the segment")
@@ -175,9 +178,10 @@ mod tests {
         prepare_dir();
 
         let table_name = "test_table_segment";
-        let mut table = SimpleTable::new(table_name);
+        let config = TableConfig::default_config();
+        let mut table = SimpleTable::new(table_name, config.clone());
 
-        for index in 0..=DETAULT_MEM_TABLE_SIZE {
+        for index in 0..=config.mem_table_size {
             let entry = Entry::new(
                 Field::new(FieldType::Int32(index as i32)),
                 Field::new(FieldType::Int32((index as i32) * 10)),
@@ -185,7 +189,7 @@ mod tests {
             table.put(entry).unwrap();
         }
 
-        for index in 0..=DETAULT_MEM_TABLE_SIZE {
+        for index in 0..=config.mem_table_size {
             let result = table
                 .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
@@ -203,9 +207,10 @@ mod tests {
         prepare_dir();
 
         let table_name = "test_table_some_segments";
-        let mut table = SimpleTable::new(table_name);
+        let config = TableConfig::default_config();
+        let mut table = SimpleTable::new(table_name, config.clone());
 
-        for index in 0..3 * DETAULT_MEM_TABLE_SIZE {
+        for index in 0..3 * config.mem_table_size {
             let entry = Entry::new(
                 Field::new(FieldType::Int32(index as i32)),
                 Field::new(FieldType::Int32((index as i32) * 10)),
@@ -213,7 +218,7 @@ mod tests {
             table.put(entry).unwrap();
         }
 
-        for index in 0..3 * DETAULT_MEM_TABLE_SIZE {
+        for index in 0..3 * config.mem_table_size {
             let result = table
                 .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
@@ -231,11 +236,11 @@ mod tests {
         prepare_dir();
 
         let table_name = "test_table_some_segments_with_restart";
-
+        let config = TableConfig::default_config();
         {
-            let mut table = SimpleTable::new(table_name);
+            let mut table = SimpleTable::new(table_name, config.clone());
 
-            for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
+            for index in 0..10 * config.mem_table_size {
                 let entry = Entry::new(
                     Field::new(FieldType::Int32(index as i32)),
                     Field::new(FieldType::Int32((index as i32) * 10)),
@@ -243,7 +248,7 @@ mod tests {
                 table.put(entry).unwrap();
             }
 
-            for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
+            for index in 0..10 * config.mem_table_size {
                 let result = table
                     .get(Field::new(FieldType::Int32(index as i32)))
                     .unwrap();
@@ -254,8 +259,8 @@ mod tests {
             }
         }
 
-        let table = SimpleTable::new(table_name);
-        for index in 0..10 * DETAULT_MEM_TABLE_SIZE {
+        let table = SimpleTable::new(table_name, config.clone());
+        for index in 0..10 * config.mem_table_size {
             let result = table
                 .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
@@ -273,9 +278,11 @@ mod tests {
         prepare_dir();
 
         let table_name = "test_merge_sements";
-        let mut table = SimpleTable::new(table_name);
+        let config = TableConfig::default_config();
 
-        for index in 0..5 * DETAULT_MEM_TABLE_SIZE {
+        let mut table = SimpleTable::new(table_name, config.clone());
+
+        for index in 0..5 * config.mem_table_size {
             let entry = Entry::new(
                 Field::new(FieldType::Int32(index as i32)),
                 Field::new(FieldType::Int32((index as i32) * 10)),
@@ -283,7 +290,7 @@ mod tests {
             table.put(entry).unwrap();
         }
 
-        for index in 0..5 * DETAULT_MEM_TABLE_SIZE {
+        for index in 0..5 * config.mem_table_size {
             let result = table
                 .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();
@@ -301,9 +308,11 @@ mod tests {
         prepare_dir();
 
         let table_name = "test_merge_sements_max_level";
-        let mut table = SimpleTable::new(table_name);
+        let config = TableConfig::default_config();
 
-        for index in 0..64 * DETAULT_MEM_TABLE_SIZE {
+        let mut table = SimpleTable::new(table_name, config.clone());
+
+        for index in 0..64 * config.mem_table_size {
             let entry = Entry::new(
                 Field::new(FieldType::Int32(index as i32)),
                 Field::new(FieldType::Int32((index as i32) * 10)),
@@ -311,7 +320,7 @@ mod tests {
             table.put(entry).unwrap();
         }
 
-        for index in 0..64 * DETAULT_MEM_TABLE_SIZE {
+        for index in 0..64 * config.mem_table_size {
             let result = table
                 .get(Field::new(FieldType::Int32(index as i32)))
                 .unwrap();

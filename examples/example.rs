@@ -3,14 +3,15 @@ use rand::Rng;
 use kvs::core::entry::Entry;
 use kvs::core::field::{Field, FieldType};
 use kvs::core::table::simple_table::SimpleTable;
-use kvs::core::table::table::Table;
+use kvs::core::table::{table::Table, config::TableConfig};
 
-const TOTAL_VALUE: usize = 1000000;
+const TOTAL_VALUE: usize = 100000;
 const K: i32 = 117;
 
 fn main() {
     let table_name = "example_table";
-    let mut table = SimpleTable::new(table_name);
+    let config = TableConfig::new_config(512, 16);
+    let mut table = SimpleTable::new(table_name, config);
 
     for index in 0..TOTAL_VALUE {
         let entry = Entry::new(
@@ -20,8 +21,12 @@ fn main() {
         table.put(entry).unwrap();
     }
 
-    for i in 0..100 {
-        for j in (i..TOTAL_VALUE).step_by(100) {
+    println!("Data was inserted.");
+
+    for index in 0..100 {
+        println!("Start searching index={}", index);
+        for j in (index..TOTAL_VALUE).step_by(100) {
+            println!("Searching index={}, j={}", index, j);
             let result = table.get(Field::new(FieldType::Int32(j as i32))).unwrap();
 
             assert_eq!(
