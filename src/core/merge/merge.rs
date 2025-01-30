@@ -1,12 +1,41 @@
 use std::fs::{File, OpenOptions};
 use std::io::copy;
+use std::path::Path;
+
+use crate::core::segment::id::SegmentID;
 
 use crate::core::segment::{
     segment,
     table::{Segments, TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL},
 };
+use crate::core::table::config::DEFAULT_SEGMENTS_LIMIT;
 
-pub fn merge(dst: &mut segment::Segment, srcs: &Segments) {
+pub fn is_ready_to_merge(table: &TableSegments) -> bool {
+    table[&SEGMENTS_MIN_LEVEL].len() == DEFAULT_SEGMENTS_LIMIT
+}
+
+pub fn merge_segments(table: &mut TableSegments, table_path: &Path, sgm_id: &mut SegmentID) {
+    for merged_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
+        let level_for_new_sg = if merged_level != SEGMENTS_MAX_LEVEL {
+            merged_level + 1
+        } else {
+            merged_level
+        };
+        match segment::Segment::for_merge(table_path, sgm_id, level_for_new_sg) {
+            Ok(mut merged_sg) => {
+                merge_impl(&mut merged_sg, &table[&merged_level]);
+                table.get_mut(&merged_level).unwrap().clear();
+                table
+                    .entry(level_for_new_sg)
+                    .or_insert_with(Vec::new)
+                    .push(merged_sg);
+            }
+            Err(_) => panic!("Failed create segment for merge"),
+        }
+    }
+}
+
+fn merge_impl(dst: &mut segment::Segment, srcs: &Segments) {
     let dst_path = segment::Segment::get_path(dst.get_table_path(), dst.get_name());
 
     let mut options: OpenOptions = OpenOptions::new();

@@ -1,9 +1,9 @@
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 
-use crate::core::field::{Field, FieldType};
+use crate::core::field::Field;
 use crate::core::marshal::Marshal;
-use crate::core::pg_errors::PgError;
+use crate::errors::Error;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Entry {
@@ -30,7 +30,7 @@ impl Entry {
 }
 
 impl Marshal for Entry {
-    fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), PgError> {
+    fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
         let mut offset = 0;
 
         self.key
@@ -43,7 +43,7 @@ impl Marshal for Entry {
 
         Ok(())
     }
-    fn deserialize(&mut self, src: &[u8]) -> Result<(), PgError> {
+    fn deserialize(&mut self, src: &[u8]) -> Result<(), Error> {
         let mut offset = 0;
 
         self.key

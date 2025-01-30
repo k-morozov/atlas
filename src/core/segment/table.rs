@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use super::segment::Segment;
-use crate::core::pg_errors::PgError;
+use crate::errors::Error;
 
 pub type Levels = u8;
 pub type Segments = Vec<Segment>;
@@ -25,11 +25,10 @@ fn extract_level(segment_name: &str) -> Option<u8> {
     level.parse::<u8>().ok()
 }
 
-pub fn get_table_segments(table_path: &Path) -> Result<TableSegments, PgError> {
+pub fn get_table_segments(table_path: &Path) -> Result<TableSegments, Error> {
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
 
-    let segment_names = fs::read_dir(segment_dir)
-        .map_err(|_| PgError::FailedReadSegmentNames)?
+    let segment_names = fs::read_dir(segment_dir)?
         .map(|entry| {
             let result = match entry {
                 Ok(entry) => {

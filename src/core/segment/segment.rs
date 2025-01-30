@@ -5,7 +5,7 @@ use super::id::SegmentID;
 use super::segment_writer::SegmentWriter;
 use super::table::Levels;
 use crate::core::mem_table::MemTable;
-use crate::core::pg_errors::PgError;
+use crate::errors::Error;
 
 pub struct Segment {
     table_path: PathBuf,
@@ -17,7 +17,7 @@ impl Segment {
         table_path: &Path,
         sgm_id: &mut SegmentID,
         mem_table: &mut MemTable,
-    ) -> Result<Self, PgError> {
+    ) -> Result<Self, Error> {
         let segment_id = sgm_id.get_and_next();
 
         let segment_name = format!("segment_{:07}_1.bin", segment_id);
@@ -36,7 +36,7 @@ impl Segment {
         table_path: &Path,
         sgm_id: &mut SegmentID,
         level: Levels,
-    ) -> Result<Self, PgError> {
+    ) -> Result<Self, Error> {
         let segment_id = sgm_id.get_and_next();
 
         let segment_name = format!("segment_{:07}_{}.bin", segment_id, level);

@@ -1,4 +1,4 @@
-use std::fs::{create_dir_all, read_dir, remove_file};
+use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -6,24 +6,22 @@ use super::table::Table;
 use crate::core::entry::Entry;
 use crate::core::field::{Field, FieldType};
 use crate::core::mem_table::MemTable;
-use crate::core::merge::merge::merge;
-use crate::core::pg_errors::PgError;
+use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
 use crate::core::schema::Schema;
 use crate::core::segment::{
     segment::Segment,
     segment_reader::SegmentReader,
     segment_writer::SegmentWriter,
-    table::{get_table_segments, TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL},
+    table::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
 };
-use crate::core::table::config::{
-    DEFAULT_SEGMENTS_LIMIT, DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE,
-};
+use crate::core::table::config::{DEFAULT_TABLES_PATH, DETAULT_MEM_TABLE_SIZE};
 use crate::core::table::metadata::TableMetadata;
+use crate::errors::Error;
 
-fn create_dirs(table_path: &Path) -> Result<(), PgError> {
-    create_dir_all(Path::new(table_path)).map_err(|_| PgError::FailedCreateTableDirs)?;
+fn create_dirs(table_path: &Path) -> Result<(), Error> {
+    create_dir_all(Path::new(table_path))?;
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
-    create_dir_all(Path::new(&segment_dir)).map_err(|_| PgError::FailedCreateTableDirs)?;
+    create_dir_all(Path::new(&segment_dir))?;
 
     Ok(())
 }
@@ -78,66 +76,52 @@ impl SimpleTable {
     pub fn table_path(table_name: &str) -> PathBuf {
         PathBuf::from(&String::from(DEFAULT_TABLES_PATH.to_string() + table_name))
     }
+
+    fn save_mem_table(&mut self) {
+        match Segment::create(
+            self.table_path.as_path(),
+            &mut self.metadata.segment_id,
+            &mut self.mem_table,
+        ) {
+            Ok(segment_from_mem_table) => {
+                self.segments
+                    .entry(SEGMENTS_MIN_LEVEL)
+                    .or_insert_with(Vec::new)
+                    .push(segment_from_mem_table);
+
+                self.mem_table = MemTable::new(DETAULT_MEM_TABLE_SIZE);
+            }
+            Err(_er) => {
+                panic!("Failed to put the segment")
+            }
+        }
+
+        self.metadata
+            .sync_disk(Path::new(self.metadata.get_metadata_path()));
+        self.mem_table.clear();
+    }
 }
 
 impl Table for SimpleTable {
-    fn put(&mut self, entry: Entry) -> Result<(), PgError> {
+    fn put(&mut self, entry: Entry) -> Result<(), Error> {
         self.mem_table.append(entry);
 
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
-            {
-                match Segment::create(
+            self.save_mem_table();
+
+            if is_ready_to_merge(&self.segments) {
+                merge_segments(
+                    &mut self.segments,
                     self.table_path.as_path(),
                     &mut self.metadata.segment_id,
-                    &mut self.mem_table,
-                ) {
-                    Ok(sg) => {
-                        self.segments
-                            .entry(SEGMENTS_MIN_LEVEL)
-                            .or_insert_with(Vec::new)
-                            .push(sg);
-
-                        self.mem_table = MemTable::new(DETAULT_MEM_TABLE_SIZE);
-
-                        if self.segments[&SEGMENTS_MIN_LEVEL].len() == DEFAULT_SEGMENTS_LIMIT {
-                            for merged_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
-                                let level_for_new_sg = if merged_level != SEGMENTS_MAX_LEVEL {
-                                    merged_level + 1
-                                } else {
-                                    merged_level
-                                };
-                                match Segment::for_merge(
-                                    self.table_path.as_path(),
-                                    &mut self.metadata.segment_id,
-                                    level_for_new_sg,
-                                ) {
-                                    Ok(mut merged_sg) => {
-                                        merge(&mut merged_sg, &self.segments[&merged_level]);
-                                        self.segments.get_mut(&merged_level).unwrap().clear();
-                                        self.segments
-                                            .entry(level_for_new_sg)
-                                            .or_insert_with(Vec::new)
-                                            .push(merged_sg);
-                                    }
-                                    Err(_) => panic!("Failed merge"),
-                                }
-                            }
-                        }
-                    }
-                    Err(_er) => {
-                        panic!("Failed to put the segment")
-                    }
-                }
+                );
             }
-            self.metadata
-                .sync_disk(Path::new(self.metadata.get_metadata_path()));
-            self.mem_table.clear();
         }
 
         Ok(())
     }
 
-    fn get(&self, key: Field) -> Result<Option<Field>, PgError> {
+    fn get(&self, key: Field) -> Result<Option<Field>, Error> {
         if let Some(value) = self.mem_table.get_value(&key) {
             return Ok(Some(value));
         }
