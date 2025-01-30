@@ -1,7 +1,7 @@
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 
-use crate::core::field::{Field, FieldType};
+use crate::core::field::Field;
 use crate::core::marshal::Marshal;
 use crate::errors::Error;
 
