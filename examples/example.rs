@@ -3,9 +3,9 @@ use rand::Rng;
 use kvs::core::entry::Entry;
 use kvs::core::field::{Field, FieldType};
 use kvs::core::table::simple_table::SimpleTable;
-use kvs::core::table::{table::Table, config::TableConfig};
+use kvs::core::table::{config::TableConfig, table::Table};
 
-const TOTAL_VALUE: usize = 100000;
+const TOTAL_VALUE: usize = 1000000;
 const K: i32 = 117;
 
 fn main() {
@@ -23,16 +23,29 @@ fn main() {
 
     println!("Data was inserted.");
 
-    for index in 0..100 {
+    for index in (0..TOTAL_VALUE).step_by(10000) {
         println!("Start searching index={}", index);
-        for j in (index..TOTAL_VALUE).step_by(100) {
-            println!("Searching index={}, j={}", index, j);
-            let result = table.get(Field::new(FieldType::Int32(j as i32))).unwrap();
+        let result = table
+            .get(Field::new(FieldType::Int32(index as i32)))
+            .unwrap();
 
-            assert_eq!(
-                result.unwrap(),
-                Field::new(FieldType::Int32((j as i32) * K))
-            );
-        }
+        assert_eq!(
+            result.unwrap(),
+            Field::new(FieldType::Int32((index as i32) * K))
+        );
     }
+
+    // for index in 0..100 {
+    //     println!("Start searching index={}", index);
+
+    //     for j in (index..TOTAL_VALUE).step_by(100) {
+    //         println!("Searching index={}, j={}", index, j);
+    //         let result = table.get(Field::new(FieldType::Int32(j as i32))).unwrap();
+
+    //         assert_eq!(
+    //             result.unwrap(),
+    //             Field::new(FieldType::Int32((j as i32) * K))
+    //         );
+    //     }
+    // }
 }
