@@ -26,7 +26,7 @@ fn create_dirs(table_path: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-struct SimpleTable {
+pub struct SimpleTable {
     table_name: String,
     table_path: PathBuf,
 
