@@ -57,7 +57,6 @@ impl<'a> SegmentWriter<'a> {
                 .write_all(&row_buf_initialized)
                 .map_err(|_| Error::InvalidData("empty".to_string()))?;
             self.buf.flush()?;
-            // .map_err(|_| Error::InvalidData)?;
         }
 
         Ok(())
@@ -70,7 +69,7 @@ mod test {
     use std::io::ErrorKind;
     use std::path::Path;
 
-    use crate::core::field::{Field, FieldType};
+    use crate::core::field::{FixedField, FieldType};
     use crate::core::segment::segment_writer::*;
 
     #[test]
@@ -89,8 +88,8 @@ mod test {
 
         for index in 1..4 {
             entries.push(Entry::new(
-                Field::new(FieldType::Int32(index)),
-                Field::new(FieldType::Int32(index * 10)),
+                FixedField::new(FieldType::Int32(index)),
+                FixedField::new(FieldType::Int32(index * 10)),
             ));
         }
         let mut writer = SegmentWriter::new(path, entries.iter());

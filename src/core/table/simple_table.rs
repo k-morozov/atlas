@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use super::table::Table;
 use crate::core::entry::Entry;
-use crate::core::field::{Field, FieldType};
+use crate::core::field::{FixedField, FieldType};
 use crate::core::mem_table::MemTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
 use crate::core::schema::Schema;
@@ -58,8 +58,8 @@ impl SimpleTable {
         let segments = segments.unwrap();
 
         let schema = Rc::new(vec![
-            Field::new(FieldType::Int32(0)),
-            Field::new(FieldType::Int32(0)),
+            FixedField::new(FieldType::Int32(0)),
+            FixedField::new(FieldType::Int32(0)),
         ]);
 
         let metadata =
@@ -124,7 +124,7 @@ impl Table for SimpleTable {
         Ok(())
     }
 
-    fn get(&self, key: Field) -> Result<Option<Field>, Error> {
+    fn get(&self, key: FixedField) -> Result<Option<FixedField>, Error> {
         if let Some(value) = self.mem_table.get_value(&key) {
             return Ok(Some(value));
         }
@@ -183,19 +183,19 @@ mod tests {
 
         for index in 0..=config.mem_table_size {
             let entry = Entry::new(
-                Field::new(FieldType::Int32(index as i32)),
-                Field::new(FieldType::Int32((index as i32) * 10)),
+                FixedField::new(FieldType::Int32(index as i32)),
+                FixedField::new(FieldType::Int32((index as i32) * 10)),
             );
             table.put(entry).unwrap();
         }
 
         for index in 0..=config.mem_table_size {
             let result = table
-                .get(Field::new(FieldType::Int32(index as i32)))
+                .get(FixedField::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
-                Field::new(FieldType::Int32((index as i32) * 10))
+                FixedField::new(FieldType::Int32((index as i32) * 10))
             );
         }
 
@@ -212,19 +212,19 @@ mod tests {
 
         for index in 0..3 * config.mem_table_size {
             let entry = Entry::new(
-                Field::new(FieldType::Int32(index as i32)),
-                Field::new(FieldType::Int32((index as i32) * 10)),
+                FixedField::new(FieldType::Int32(index as i32)),
+                FixedField::new(FieldType::Int32((index as i32) * 10)),
             );
             table.put(entry).unwrap();
         }
 
         for index in 0..3 * config.mem_table_size {
             let result = table
-                .get(Field::new(FieldType::Int32(index as i32)))
+                .get(FixedField::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
-                Field::new(FieldType::Int32((index as i32) * 10))
+                FixedField::new(FieldType::Int32((index as i32) * 10))
             );
         }
 
@@ -242,19 +242,19 @@ mod tests {
 
             for index in 0..10 * config.mem_table_size {
                 let entry = Entry::new(
-                    Field::new(FieldType::Int32(index as i32)),
-                    Field::new(FieldType::Int32((index as i32) * 10)),
+                    FixedField::new(FieldType::Int32(index as i32)),
+                    FixedField::new(FieldType::Int32((index as i32) * 10)),
                 );
                 table.put(entry).unwrap();
             }
 
             for index in 0..10 * config.mem_table_size {
                 let result = table
-                    .get(Field::new(FieldType::Int32(index as i32)))
+                    .get(FixedField::new(FieldType::Int32(index as i32)))
                     .unwrap();
                 assert_eq!(
                     result.unwrap(),
-                    Field::new(FieldType::Int32((index as i32) * 10))
+                    FixedField::new(FieldType::Int32((index as i32) * 10))
                 );
             }
         }
@@ -262,11 +262,11 @@ mod tests {
         let table = SimpleTable::new(table_name, config.clone());
         for index in 0..10 * config.mem_table_size {
             let result = table
-                .get(Field::new(FieldType::Int32(index as i32)))
+                .get(FixedField::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
-                Field::new(FieldType::Int32((index as i32) * 10))
+                FixedField::new(FieldType::Int32((index as i32) * 10))
             );
         }
 
@@ -284,19 +284,19 @@ mod tests {
 
         for index in 0..5 * config.mem_table_size {
             let entry = Entry::new(
-                Field::new(FieldType::Int32(index as i32)),
-                Field::new(FieldType::Int32((index as i32) * 10)),
+                FixedField::new(FieldType::Int32(index as i32)),
+                FixedField::new(FieldType::Int32((index as i32) * 10)),
             );
             table.put(entry).unwrap();
         }
 
         for index in 0..5 * config.mem_table_size {
             let result = table
-                .get(Field::new(FieldType::Int32(index as i32)))
+                .get(FixedField::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
-                Field::new(FieldType::Int32((index as i32) * 10))
+                FixedField::new(FieldType::Int32((index as i32) * 10))
             );
         }
 
@@ -314,19 +314,19 @@ mod tests {
 
         for index in 0..64 * config.mem_table_size {
             let entry = Entry::new(
-                Field::new(FieldType::Int32(index as i32)),
-                Field::new(FieldType::Int32((index as i32) * 10)),
+                FixedField::new(FieldType::Int32(index as i32)),
+                FixedField::new(FieldType::Int32((index as i32) * 10)),
             );
             table.put(entry).unwrap();
         }
 
         for index in 0..64 * config.mem_table_size {
             let result = table
-                .get(Field::new(FieldType::Int32(index as i32)))
+                .get(FixedField::new(FieldType::Int32(index as i32)))
                 .unwrap();
             assert_eq!(
                 result.unwrap(),
-                Field::new(FieldType::Int32((index as i32) * 10))
+                FixedField::new(FieldType::Int32((index as i32) * 10))
             );
         }
 
