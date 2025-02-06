@@ -62,6 +62,24 @@ impl Marshal for FixedField {
     }
 }
 
+pub struct FlexibleField {
+    pub data: Vec<u8>,
+}
+
+impl FlexibleField {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn size(&self) -> usize {
+        self.len() * size_of::<u8>()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::mem::MaybeUninit;

@@ -1,7 +1,7 @@
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 
-use crate::core::field::FixedField;
+use crate::core::field::{FixedField, FlexibleField};
 use crate::core::marshal::Marshal;
 use crate::errors::Error;
 
@@ -58,6 +58,29 @@ impl Marshal for Entry {
     }
 }
 
+pub struct FlexibleEntry {
+    pub key: FlexibleField,
+    pub value: FlexibleField,
+}
+
+impl FlexibleEntry {
+    pub fn new(key: FlexibleField, value: FlexibleField) -> Self {
+        FlexibleEntry { key, value }
+    }
+
+    pub fn get_key(&self) -> &FlexibleField {
+        &self.key
+    }
+
+    pub fn get_value(&self) -> &FlexibleField {
+        &self.value
+    }
+
+    pub fn len(&self) -> usize {
+        self.key.len() + self.value.len()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::core::entry::*;
@@ -98,7 +121,10 @@ mod tests {
         assert!(result.is_ok());
 
         assert_eq!(*entry_out.get_key(), FixedField::new(FieldType::Int32(3)));
-        assert_eq!(*entry_out.get_value(), FixedField::new(FieldType::Int32(33)));
+        assert_eq!(
+            *entry_out.get_value(),
+            FixedField::new(FieldType::Int32(33))
+        );
 
         assert_eq!(entry_out.size(), 2 * size_of::<i32>());
     }

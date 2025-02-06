@@ -69,7 +69,7 @@ mod test {
     use std::io::ErrorKind;
     use std::path::Path;
 
-    use crate::core::field::{FixedField, FieldType};
+    use crate::core::field::{FieldType, FixedField};
     use crate::core::segment::segment_writer::*;
 
     #[test]

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use super::table::Table;
 use crate::core::entry::Entry;
-use crate::core::field::{FixedField, FieldType};
+use crate::core::field::{FieldType, FixedField};
 use crate::core::mem_table::MemTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
 use crate::core::schema::Schema;
