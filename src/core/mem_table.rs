@@ -1,7 +1,7 @@
 use std::iter::IntoIterator;
 
 use crate::core::entry::Entry;
-use crate::core::field::Field;
+use crate::core::field::FixedField;
 
 pub struct MemTable {
     entries: Vec<Entry>,
@@ -34,7 +34,7 @@ impl MemTable {
         self.current_size += 1;
     }
 
-    pub fn get_value(&self, key: &Field) -> Option<Field> {
+    pub fn get_value(&self, key: &FixedField) -> Option<FixedField> {
         self.entries
             .iter()
             .find(|entry| entry.get_key() == key)
@@ -105,20 +105,20 @@ mod tests {
         let mut mem_table = mem_table::MemTable::new(3);
 
         let entry1 = Entry::new(
-            Field::new(FieldType::Int32(33)),
-            Field::new(FieldType::Int32(330)),
+            FixedField::new(FieldType::Int32(33)),
+            FixedField::new(FieldType::Int32(330)),
         );
         mem_table.append(entry1.clone());
 
         let entry2 = Entry::new(
-            Field::new(FieldType::Int32(34)),
-            Field::new(FieldType::Int32(340)),
+            FixedField::new(FieldType::Int32(34)),
+            FixedField::new(FieldType::Int32(340)),
         );
         mem_table.append(entry2.clone());
 
         let entry3 = Entry::new(
-            Field::new(FieldType::Int32(35)),
-            Field::new(FieldType::Int32(350)),
+            FixedField::new(FieldType::Int32(35)),
+            FixedField::new(FieldType::Int32(350)),
         );
         mem_table.append(entry3.clone());
 

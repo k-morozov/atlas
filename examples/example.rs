@@ -1,7 +1,7 @@
 use rand::Rng;
 
 use kvs::core::entry::Entry;
-use kvs::core::field::{Field, FieldType};
+use kvs::core::field::{FixedField, FieldType};
 use kvs::core::table::simple_table::SimpleTable;
 use kvs::core::table::{config::TableConfig, table::Table};
 
@@ -15,8 +15,8 @@ fn main() {
 
     for index in 0..TOTAL_VALUE {
         let entry = Entry::new(
-            Field::new(FieldType::Int32(index as i32)),
-            Field::new(FieldType::Int32((index as i32) * K)),
+            FixedField::new(FieldType::Int32(index as i32)),
+            FixedField::new(FieldType::Int32((index as i32) * K)),
         );
         table.put(entry).unwrap();
     }
@@ -26,12 +26,12 @@ fn main() {
     for index in (0..TOTAL_VALUE).step_by(10000) {
         println!("Start searching index={}", index);
         let result = table
-            .get(Field::new(FieldType::Int32(index as i32)))
+            .get(FixedField::new(FieldType::Int32(index as i32)))
             .unwrap();
 
         assert_eq!(
             result.unwrap(),
-            Field::new(FieldType::Int32((index as i32) * K))
+            FixedField::new(FieldType::Int32((index as i32) * K))
         );
     }
 

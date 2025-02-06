@@ -11,13 +11,13 @@ pub enum FieldType {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct Field {
+pub struct FixedField {
     pub value: FieldType,
 }
 
-impl Field {
+impl FixedField {
     pub fn new(value: FieldType) -> Self {
-        Field { value }
+        FixedField { value }
     }
 
     pub fn size(&self) -> usize {
@@ -27,7 +27,7 @@ impl Field {
     }
 }
 
-impl Marshal for Field {
+impl Marshal for FixedField {
     fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<()> {
         match &self.value {
             FieldType::Int32(number) => {
@@ -70,7 +70,7 @@ mod test {
 
     #[test]
     fn simple_serialize() {
-        let field = Field::new(FieldType::Int32(432));
+        let field = FixedField::new(FieldType::Int32(432));
 
         let mut dst = vec![MaybeUninit::uninit(); size_of::<i32>()];
 
@@ -87,7 +87,7 @@ mod test {
 
     #[test]
     fn simple_deserialize() {
-        let mut field = Field::new(FieldType::Int32(0));
+        let mut field = FixedField::new(FieldType::Int32(0));
         let src = &[176, 1, 0, 0];
 
         let r = field.deserialize(src);
@@ -98,7 +98,7 @@ mod test {
 
     #[test]
     fn failed_serialize() {
-        let field: Field = Field::new(FieldType::Int32(432));
+        let field: FixedField = FixedField::new(FieldType::Int32(432));
 
         let mut dst = vec![MaybeUninit::uninit(); 1];
 
@@ -109,7 +109,7 @@ mod test {
 
     #[test]
     fn failed_deserialize() {
-        let mut field = Field::new(FieldType::Int32(0));
+        let mut field = FixedField::new(FieldType::Int32(0));
         let src = &[176, 1, 0, 0, 13];
 
         let r = field.deserialize(src);

@@ -4,7 +4,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::core::entry::Entry;
-use crate::core::field::Field;
+use crate::core::field::FixedField;
 use crate::core::marshal::Marshal;
 use crate::core::schema::{schema_size, Schema};
 use crate::errors::Result;
@@ -32,7 +32,7 @@ impl SegmentReader {
         }
     }
 
-    pub fn read(&self, key: &Field) -> Result<Option<Field>> {
+    pub fn read(&self, key: &FixedField) -> Result<Option<FixedField>> {
         let mut part_buffer = BufReader::new(&self.part_file);
 
         loop {
@@ -104,18 +104,18 @@ mod test {
     #[test]
     fn simple_segment_reader() {
         let schema = Rc::new(vec![
-            Field::new(FieldType::Int32(0)),
-            Field::new(FieldType::Int32(0)),
+            FixedField::new(FieldType::Int32(0)),
+            FixedField::new(FieldType::Int32(0)),
         ]);
 
         let entry1 = Entry::new(
-            Field::new(FieldType::Int32(42)),
-            Field::new(FieldType::Int32(420)),
+            FixedField::new(FieldType::Int32(42)),
+            FixedField::new(FieldType::Int32(420)),
         );
 
         let entry2 = Entry::new(
-            Field::new(FieldType::Int32(43)),
-            Field::new(FieldType::Int32(430)),
+            FixedField::new(FieldType::Int32(43)),
+            FixedField::new(FieldType::Int32(430)),
         );
 
         let mut entries = Vec::new();
@@ -127,16 +127,16 @@ mod test {
 
         let reader = SegmentReader::new(path, schema.clone());
 
-        let key = Field::new(FieldType::Int32(43));
+        let key = FixedField::new(FieldType::Int32(43));
         let result = reader.read(&key);
         assert!(result.is_ok());
 
         let actual = result.unwrap();
         assert!(actual.is_some());
 
-        assert_eq!(actual.unwrap(), Field::new(FieldType::Int32(430)));
+        assert_eq!(actual.unwrap(), FixedField::new(FieldType::Int32(430)));
 
-        let key = Field::new(FieldType::Int32(431));
+        let key = FixedField::new(FieldType::Int32(431));
         let result = reader.read(&key);
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());

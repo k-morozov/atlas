@@ -1,26 +1,26 @@
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 
-use crate::core::field::Field;
+use crate::core::field::FixedField;
 use crate::core::marshal::Marshal;
 use crate::errors::Error;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Entry {
-    pub key: Field,
-    pub value: Field,
+    pub key: FixedField,
+    pub value: FixedField,
 }
 
 impl Entry {
-    pub fn new(key: Field, value: Field) -> Self {
+    pub fn new(key: FixedField, value: FixedField) -> Self {
         Entry { key, value }
     }
 
-    pub fn get_key(&self) -> &Field {
+    pub fn get_key(&self) -> &FixedField {
         &self.key
     }
 
-    pub fn get_value(&self) -> &Field {
+    pub fn get_value(&self) -> &FixedField {
         &self.value
     }
 
@@ -66,18 +66,18 @@ mod tests {
     #[test]
     fn test_get_value() {
         let row = Entry::new(
-            Field::new(FieldType::Int32(3)),
-            Field::new(FieldType::Int32(30)),
+            FixedField::new(FieldType::Int32(3)),
+            FixedField::new(FieldType::Int32(30)),
         );
 
-        assert_eq!(*row.get_value(), Field::new(FieldType::Int32(30)));
+        assert_eq!(*row.get_value(), FixedField::new(FieldType::Int32(30)));
     }
 
     #[test]
     fn serialization() {
         let entry = Entry::new(
-            Field::new(FieldType::Int32(3)),
-            Field::new(FieldType::Int32(33)),
+            FixedField::new(FieldType::Int32(3)),
+            FixedField::new(FieldType::Int32(33)),
         );
 
         let mut entry_buffer_raw = vec![MaybeUninit::<u8>::uninit(); entry.size()];
@@ -85,8 +85,8 @@ mod tests {
         assert!(result.is_ok());
 
         let mut entry_out = Entry::new(
-            Field::new(FieldType::Int32(0)),
-            Field::new(FieldType::Int32(0)),
+            FixedField::new(FieldType::Int32(0)),
+            FixedField::new(FieldType::Int32(0)),
         );
 
         let row_buffer_initialized = entry_buffer_raw
@@ -97,8 +97,8 @@ mod tests {
         let result = entry_out.deserialize(&row_buffer_initialized);
         assert!(result.is_ok());
 
-        assert_eq!(*entry_out.get_key(), Field::new(FieldType::Int32(3)));
-        assert_eq!(*entry_out.get_value(), Field::new(FieldType::Int32(33)));
+        assert_eq!(*entry_out.get_key(), FixedField::new(FieldType::Int32(3)));
+        assert_eq!(*entry_out.get_value(), FixedField::new(FieldType::Int32(33)));
 
         assert_eq!(entry_out.size(), 2 * size_of::<i32>());
     }
