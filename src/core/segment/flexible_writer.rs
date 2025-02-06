@@ -8,7 +8,7 @@ use std::slice::from_raw_parts;
 use crate::core::entry::FlexibleEntry;
 use crate::errors::{Error, Result};
 
-pub struct SegmentWriter<'a> {
+pub struct FlexibleWriter<'a> {
     buf: BufWriter<File>,
     row_it: Option<Box<dyn Iterator<Item = &'a FlexibleEntry> + 'a>>,
 }
@@ -18,7 +18,7 @@ struct Offset {
     len: u32,
 }
 
-impl<'a> SegmentWriter<'a> {
+impl<'a> FlexibleWriter<'a> {
     pub fn new<T>(path_to_segment: &Path, row_it: T) -> Self
     where
         T: Iterator<Item = &'a FlexibleEntry> + 'a,
@@ -90,5 +90,43 @@ impl<'a> SegmentWriter<'a> {
         self.buf.flush()?;
 
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::fs::{create_dir_all, remove_file};
+    use std::io::ErrorKind;
+    use std::path::Path;
+
+    use crate::core::field::FlexibleField;
+    use crate::core::segment::flexible_writer::FlexibleWriter;
+    use crate::core::entry::FlexibleEntry;
+
+    #[test]
+    fn simple() {
+        let path = Path::new("/tmp/kvs/test/create_flex_segment/part1.bin");
+
+        if let Some(parent) = path.parent() {
+            create_dir_all(parent).unwrap();
+        }
+
+        if let Err(er) = remove_file(path) {
+            assert_eq!(ErrorKind::NotFound, er.kind());
+        }
+
+        let mut entries: Vec<FlexibleEntry> = Vec::new();
+
+        for index in (1..5u32).step_by(1) {
+            entries.push(FlexibleEntry::new(
+                FlexibleField::new(index.to_le_bytes().to_vec()),
+                FlexibleField::new((index + 10).to_le_bytes().to_vec()),
+            ));
+        }
+        let mut writer = FlexibleWriter::new(path, entries.iter());
+        let result = writer.write_entries();
+
+        assert!(result.is_ok());
     }
 }
