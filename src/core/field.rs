@@ -62,6 +62,7 @@ impl Marshal for FixedField {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct FlexibleField {
     pub data: Vec<u8>,
 }

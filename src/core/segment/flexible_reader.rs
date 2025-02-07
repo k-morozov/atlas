@@ -78,6 +78,24 @@ impl FlexibleReader {
             entries_offsets.push((key_offset, value_offset));
         }
 
+        for (entry_key, entry_value) in entries_offsets {
+            let _offset = self.fd.seek(SeekFrom::Start(entry_key.start as u64))?;
+            let mut buffer = vec![0u8; entry_key.len as usize];
+
+            let bytes = self.fd.read(&mut buffer)?;
+            assert_eq!(bytes, entry_key.len as usize);
+
+            if key.data == buffer {
+                let _offset = self.fd.seek(SeekFrom::Start(entry_value.start as u64))?;
+                let mut buffer = vec![0u8; entry_value.len as usize];
+
+                let bytes = self.fd.read(&mut buffer)?;
+                assert_eq!(bytes, entry_value.len as usize);
+
+                return Ok(Some(FlexibleField::new(buffer)));
+            }
+        }
+
         Ok(None)
     }
 }

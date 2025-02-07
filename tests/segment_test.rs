@@ -33,9 +33,11 @@ fn simple() {
 
     for index in (1..6u32).step_by(1) {
         let reader = FlexibleReader::new(path);
-        let _r = reader
+        let actual = reader
             .read(&FlexibleField::new(index.to_le_bytes().to_vec()))
             .unwrap()
             .unwrap();
+        let expected = FlexibleField::new((index + 10).to_le_bytes().to_vec());
+        assert_eq!(actual, expected);
     }
 }
