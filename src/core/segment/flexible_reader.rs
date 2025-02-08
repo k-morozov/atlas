@@ -36,7 +36,7 @@ impl FlexibleReader {
 
         let size_entry_offsets = 4 * size_of::<u32>() as u64;
 
-        let offset = self.fd.seek(SeekFrom::Start(
+        let _offset = self.fd.seek(SeekFrom::Start(
             offset - count_offsets as u64 * size_entry_offsets,
         ))?;
 
