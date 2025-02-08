@@ -106,4 +106,15 @@ fn diffrent_types() {
         let expected = FlexibleField::new(value.to_string().as_bytes().to_vec());
         assert_eq!(actual, expected);
     }
+
+    for index in (15..20u32).step_by(1) {
+        let reader = FlexibleReader::new(path);
+
+        let key = format!("{}-some-key", index);
+        let actual = reader
+            .read(&FlexibleField::new(key.as_bytes().to_vec()))
+            .unwrap();
+
+        assert_eq!(actual, None);
+    }
 }
