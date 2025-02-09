@@ -1,4 +1,4 @@
-use crate::core::field::FixedField;
+use crate::core::field::{FixedField, FieldSize};
 
 pub type Schema = Vec<FixedField>;
 

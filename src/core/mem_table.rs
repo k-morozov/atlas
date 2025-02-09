@@ -1,6 +1,6 @@
 use std::iter::IntoIterator;
 
-use crate::core::fixed_entry::FixedEntry;
+use crate::core::entry::fixed_entry::FixedEntry;
 use crate::core::field::FixedField;
 
 pub struct MemTable {
@@ -38,7 +38,7 @@ impl MemTable {
         self.entries
             .iter()
             .find(|entry| entry.get_key() == key)
-            .map(|entry| entry.value.clone())
+            .map(|entry| entry.get_value().clone())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &FixedEntry> {
@@ -88,7 +88,7 @@ impl<'a> IntoIterator for &'a MemTable {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::fixed_entry::FixedEntry;
+    use crate::core::entry::fixed_entry::FixedEntry;
     use crate::core::field::*;
     use crate::core::mem_table;
     use std::iter::zip;

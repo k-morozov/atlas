@@ -3,8 +3,8 @@ use std::io::{BufReader, ErrorKind::UnexpectedEof, Read};
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::core::fixed_entry::FixedEntry;
-use crate::core::field::FixedField;
+use crate::core::entry::fixed_entry::FixedEntry;
+use crate::core::field::{FixedField, FieldSize};
 use crate::core::marshal::Marshal;
 use crate::core::schema::{schema_size, Schema};
 use crate::errors::Result;
@@ -69,7 +69,7 @@ mod test {
     use std::rc::Rc;
     use std::slice::from_raw_parts;
 
-    use crate::core::fixed_entry::*;
+    use crate::core::entry::fixed_entry::*;
     use crate::core::field::*;
     use crate::core::marshal::Marshal;
     use crate::core::segment::segment_reader::*;

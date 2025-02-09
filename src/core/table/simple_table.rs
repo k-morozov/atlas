@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use super::table::Table;
-use crate::core::fixed_entry::FixedEntry;
+use crate::core::entry::fixed_entry::FixedEntry;
 use crate::core::field::{FieldType, FixedField};
 use crate::core::mem_table::MemTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
@@ -151,7 +151,7 @@ mod tests {
     use std::io::ErrorKind;
 
     use super::*;
-    use crate::core::fixed_entry::*;
+    use crate::core::entry::fixed_entry::*;
     use crate::core::field::*;
 
     fn prepare_dir() {

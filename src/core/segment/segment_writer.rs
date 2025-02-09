@@ -5,7 +5,7 @@ use std::mem::MaybeUninit;
 use std::path::Path;
 use std::slice::from_raw_parts;
 
-use crate::core::fixed_entry::FixedEntry;
+use crate::core::entry::fixed_entry::FixedEntry;
 use crate::core::marshal::Marshal;
 use crate::errors::{Error, Result};
 

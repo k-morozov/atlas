@@ -2,7 +2,7 @@ use std::fs::{create_dir_all, remove_file};
 use std::io::ErrorKind;
 use std::path::Path;
 
-use kvs::core::flexible_entry::FlexibleEntry;
+use kvs::core::entry::flexible_entry::FlexibleEntry;
 use kvs::core::field::FlexibleField;
 use kvs::core::segment::{flexible_reader::FlexibleReader, flexible_writer::FlexibleWriter};
 

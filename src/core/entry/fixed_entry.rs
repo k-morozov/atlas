@@ -1,52 +1,23 @@
-use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 
-use crate::core::field::FixedField;
+use crate::core::field::{FixedField, FieldSize};
 use crate::core::marshal::Marshal;
 use crate::errors::Error;
+use crate::core::entry::entry;
 
-pub trait WriteEntry {
 
-}
-
-pub trait ReadEntry {
-
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct FixedEntry {
-    pub key: FixedField,
-    pub value: FixedField,
-}
-
-impl FixedEntry {
-    pub fn new(key: FixedField, value: FixedField) -> Self {
-        FixedEntry { key, value }
-    }
-
-    pub fn get_key(&self) -> &FixedField {
-        &self.key
-    }
-
-    pub fn get_value(&self) -> &FixedField {
-        &self.value
-    }
-
-    pub fn size(&self) -> usize {
-        self.key.size() + self.value.size()
-    }
-}
+pub type FixedEntry = entry::Entry<FixedField, FixedField>;
 
 impl Marshal for FixedEntry {
     fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
         let mut offset = 0;
 
-        self.key
-            .serialize(&mut dst[offset..offset + self.key.size()])?;
-        offset += self.key.size();
+        self.get_key()
+            .serialize(&mut dst[offset..offset + self.get_key().size()])?;
+        offset += self.get_key().size();
 
-        self.value
-            .serialize(&mut dst[offset..offset + self.value.size()])?;
+        self.get_value()
+            .serialize(&mut dst[offset..offset + self.get_value().size()])?;
         // offset += self.value.size();
 
         Ok(())
@@ -54,12 +25,14 @@ impl Marshal for FixedEntry {
     fn deserialize(&mut self, src: &[u8]) -> Result<(), Error> {
         let mut offset = 0;
 
-        self.key
-            .deserialize(&src[offset..offset + self.key.size()])?;
-        offset += self.key.size();
+        let field_size = self.get_key().size();
+        self.get_mut_key()
+            .deserialize(&src[offset..offset + field_size])?;
+        offset += self.get_key().size();
 
-        self.value
-            .deserialize(&src[offset..offset + self.value.size()])?;
+        let field_size = self.get_value().size();
+        self.get_mut_value()
+            .deserialize(&src[offset..offset + field_size])?;
         // offset += self.value.size();
 
         Ok(())
@@ -68,7 +41,7 @@ impl Marshal for FixedEntry {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::fixed_entry::*;
+    use crate::core::entry::fixed_entry::*;
     use crate::core::field::*;
 
     #[test]

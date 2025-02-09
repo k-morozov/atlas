@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use kvs::core::fixed_entry::FixedEntry;
+use kvs::core::entry::fixed_entry::FixedEntry;
 use kvs::core::field::{FieldType, FixedField};
 use kvs::core::table::simple_table::SimpleTable;
 use kvs::core::table::{config::TableConfig, table::Table};

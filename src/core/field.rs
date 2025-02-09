@@ -19,8 +19,10 @@ impl FixedField {
     pub fn new(value: FieldType) -> Self {
         FixedField { value }
     }
+}
 
-    pub fn size(&self) -> usize {
+impl FieldSize for FixedField {
+    fn size(&self) -> usize {
         match self.value {
             FieldType::Int32(_) => size_of::<i32>(),
         }
@@ -75,10 +77,17 @@ impl FlexibleField {
     pub fn len(&self) -> usize {
         self.data.len()
     }
+}
 
-    pub fn size(&self) -> usize {
+impl FieldSize for FlexibleField {
+    fn size(&self) -> usize {
         self.len() * size_of::<u8>()
     }
+}
+
+
+pub trait FieldSize {
+    fn size(&self) -> usize;
 }
 
 #[cfg(test)]
