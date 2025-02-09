@@ -3,13 +3,13 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use super::table::Table;
-use crate::core::entry::Entry;
+use crate::core::fixed_entry::FixedEntry;
 use crate::core::field::{FieldType, FixedField};
 use crate::core::mem_table::MemTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
 use crate::core::schema::Schema;
 use crate::core::segment::{
-    segment::Segment,
+    fixed_segment::FixedSegment,
     segment_reader::SegmentReader,
     segment_writer::SegmentWriter,
     table::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
@@ -81,7 +81,7 @@ impl SimpleTable {
     }
 
     fn save_mem_table(&mut self) {
-        match Segment::create(
+        match FixedSegment::create(
             self.table_path.as_path(),
             &mut self.metadata.segment_id,
             &mut self.mem_table,
@@ -106,7 +106,7 @@ impl SimpleTable {
 }
 
 impl Table for SimpleTable {
-    fn put(&mut self, entry: Entry) -> Result<(), Error> {
+    fn put(&mut self, entry: FixedEntry) -> Result<(), Error> {
         self.mem_table.append(entry);
 
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
@@ -132,7 +132,7 @@ impl Table for SimpleTable {
         for (_level, segments) in &self.segments {
             for segment in segments {
                 let reader = SegmentReader::new(
-                    Segment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
+                    FixedSegment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
                     self.schema.clone(),
                 );
                 if let Some(r) = reader.read(&key)? {
@@ -151,7 +151,7 @@ mod tests {
     use std::io::ErrorKind;
 
     use super::*;
-    use crate::core::entry::*;
+    use crate::core::fixed_entry::*;
     use crate::core::field::*;
 
     fn prepare_dir() {
@@ -182,7 +182,7 @@ mod tests {
         let mut table = SimpleTable::new(table_name, config.clone());
 
         for index in 0..=config.mem_table_size {
-            let entry = Entry::new(
+            let entry = FixedEntry::new(
                 FixedField::new(FieldType::Int32(index as i32)),
                 FixedField::new(FieldType::Int32((index as i32) * 10)),
             );
@@ -211,7 +211,7 @@ mod tests {
         let mut table = SimpleTable::new(table_name, config.clone());
 
         for index in 0..3 * config.mem_table_size {
-            let entry = Entry::new(
+            let entry = FixedEntry::new(
                 FixedField::new(FieldType::Int32(index as i32)),
                 FixedField::new(FieldType::Int32((index as i32) * 10)),
             );
@@ -241,7 +241,7 @@ mod tests {
             let mut table = SimpleTable::new(table_name, config.clone());
 
             for index in 0..10 * config.mem_table_size {
-                let entry = Entry::new(
+                let entry = FixedEntry::new(
                     FixedField::new(FieldType::Int32(index as i32)),
                     FixedField::new(FieldType::Int32((index as i32) * 10)),
                 );
@@ -283,7 +283,7 @@ mod tests {
         let mut table = SimpleTable::new(table_name, config.clone());
 
         for index in 0..5 * config.mem_table_size {
-            let entry = Entry::new(
+            let entry = FixedEntry::new(
                 FixedField::new(FieldType::Int32(index as i32)),
                 FixedField::new(FieldType::Int32((index as i32) * 10)),
             );
@@ -313,7 +313,7 @@ mod tests {
         let mut table = SimpleTable::new(table_name, config.clone());
 
         for index in 0..64 * config.mem_table_size {
-            let entry = Entry::new(
+            let entry = FixedEntry::new(
                 FixedField::new(FieldType::Int32(index as i32)),
                 FixedField::new(FieldType::Int32((index as i32) * 10)),
             );

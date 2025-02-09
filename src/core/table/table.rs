@@ -1,8 +1,8 @@
-use crate::core::entry::Entry;
+use crate::core::fixed_entry::FixedEntry;
 use crate::core::field::FixedField;
 use crate::errors::Error;
 
 pub trait Table {
-    fn put(&mut self, entry: Entry) -> Result<(), Error>;
+    fn put(&mut self, entry: FixedEntry) -> Result<(), Error>;
     fn get(&self, key: FixedField) -> Result<Option<FixedField>, Error>;
 }

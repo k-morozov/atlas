@@ -5,7 +5,7 @@ use std::mem::MaybeUninit;
 use std::path::Path;
 use std::slice::from_raw_parts;
 
-use crate::core::entry::FlexibleEntry;
+use crate::core::flexible_entry::FlexibleEntry;
 use crate::core::segment::offset::Offset;
 use crate::errors::{Error, Result};
 

@@ -5,19 +5,19 @@ use std::mem::MaybeUninit;
 use std::path::Path;
 use std::slice::from_raw_parts;
 
-use crate::core::entry::Entry;
+use crate::core::fixed_entry::FixedEntry;
 use crate::core::marshal::Marshal;
 use crate::errors::{Error, Result};
 
 pub struct SegmentWriter<'a> {
     buf: BufWriter<File>,
-    row_it: Option<Box<dyn Iterator<Item = &'a Entry> + 'a>>,
+    row_it: Option<Box<dyn Iterator<Item = &'a FixedEntry> + 'a>>,
 }
 
 impl<'a> SegmentWriter<'a> {
     pub fn new<T>(path_to_segment: &Path, row_it: T) -> Self
     where
-        T: Iterator<Item = &'a Entry> + 'a,
+        T: Iterator<Item = &'a FixedEntry> + 'a,
     {
         let result_create = File::create(path_to_segment);
         if let Err(er) = result_create {
@@ -84,10 +84,10 @@ mod test {
             assert_eq!(ErrorKind::NotFound, er.kind());
         }
 
-        let mut entries: Vec<Entry> = Vec::new();
+        let mut entries: Vec<FixedEntry> = Vec::new();
 
         for index in 1..4 {
-            entries.push(Entry::new(
+            entries.push(FixedEntry::new(
                 FixedField::new(FieldType::Int32(index)),
                 FixedField::new(FieldType::Int32(index * 10)),
             ));

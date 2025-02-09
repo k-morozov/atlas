@@ -1,4 +1,5 @@
-pub mod entry;
+pub mod fixed_entry;
+pub mod flexible_entry;
 pub mod field;
 pub mod marshal;
 pub mod mem_table;

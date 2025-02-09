@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use kvs::core::entry::Entry;
+use kvs::core::fixed_entry::FixedEntry;
 use kvs::core::field::{FieldType, FixedField};
 use kvs::core::table::simple_table::SimpleTable;
 use kvs::core::table::{config::TableConfig, table::Table};
@@ -14,7 +14,7 @@ fn main() {
     let mut table = SimpleTable::new(table_name, config);
 
     for index in 0..TOTAL_VALUE {
-        let entry = Entry::new(
+        let entry = FixedEntry::new(
             FixedField::new(FieldType::Int32(index as i32)),
             FixedField::new(FieldType::Int32((index as i32) * K)),
         );

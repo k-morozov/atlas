@@ -3,7 +3,7 @@ use std::io::{BufReader, ErrorKind::UnexpectedEof, Read};
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::core::entry::Entry;
+use crate::core::fixed_entry::FixedEntry;
 use crate::core::field::FixedField;
 use crate::core::marshal::Marshal;
 use crate::core::schema::{schema_size, Schema};
@@ -39,7 +39,7 @@ impl SegmentReader {
             let mut entry_buffer = vec![0u8; self.schema_size];
             match part_buffer.read_exact(&mut entry_buffer) {
                 Ok(_) => {
-                    let mut entry = Entry::new(self.schema[0].clone(), self.schema[1].clone());
+                    let mut entry = FixedEntry::new(self.schema[0].clone(), self.schema[1].clone());
 
                     entry.deserialize(&entry_buffer)?;
 
@@ -69,12 +69,12 @@ mod test {
     use std::rc::Rc;
     use std::slice::from_raw_parts;
 
-    use crate::core::entry::*;
+    use crate::core::fixed_entry::*;
     use crate::core::field::*;
     use crate::core::marshal::Marshal;
     use crate::core::segment::segment_reader::*;
 
-    fn create_part(path: &Path, rows: &Vec<Entry>) {
+    fn create_part(path: &Path, rows: &Vec<FixedEntry>) {
         if let Some(parent) = path.parent() {
             create_dir_all(parent).unwrap();
         }
@@ -108,12 +108,12 @@ mod test {
             FixedField::new(FieldType::Int32(0)),
         ]);
 
-        let entry1 = Entry::new(
+        let entry1 = FixedEntry::new(
             FixedField::new(FieldType::Int32(42)),
             FixedField::new(FieldType::Int32(420)),
         );
 
-        let entry2 = Entry::new(
+        let entry2 = FixedEntry::new(
             FixedField::new(FieldType::Int32(43)),
             FixedField::new(FieldType::Int32(430)),
         );

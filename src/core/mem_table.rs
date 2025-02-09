@@ -1,10 +1,10 @@
 use std::iter::IntoIterator;
 
-use crate::core::entry::Entry;
+use crate::core::fixed_entry::FixedEntry;
 use crate::core::field::FixedField;
 
 pub struct MemTable {
-    entries: Vec<Entry>,
+    entries: Vec<FixedEntry>,
     current_size: usize,
     max_table_size: usize,
 }
@@ -28,7 +28,7 @@ impl MemTable {
         self.max_table_size
     }
 
-    pub fn append(&mut self, row: Entry) {
+    pub fn append(&mut self, row: FixedEntry) {
         self.entries.push(row);
         // self.entries.sort();
         self.current_size += 1;
@@ -41,11 +41,11 @@ impl MemTable {
             .map(|entry| entry.value.clone())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Entry> {
+    pub fn iter(&self) -> impl Iterator<Item = &FixedEntry> {
         self.entries.iter()
     }
 
-    fn get(&self, index: usize) -> Option<&Entry> {
+    fn get(&self, index: usize) -> Option<&FixedEntry> {
         self.entries.get(index)
     }
 
@@ -61,7 +61,7 @@ pub struct MemTableIterator<'a> {
 }
 
 impl<'a> Iterator for MemTableIterator<'a> {
-    type Item = &'a Entry;
+    type Item = &'a FixedEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.table.max_table_size() {
@@ -75,7 +75,7 @@ impl<'a> Iterator for MemTableIterator<'a> {
 }
 
 impl<'a> IntoIterator for &'a MemTable {
-    type Item = &'a Entry;
+    type Item = &'a FixedEntry;
     type IntoIter = MemTableIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -88,7 +88,7 @@ impl<'a> IntoIterator for &'a MemTable {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::entry::Entry;
+    use crate::core::fixed_entry::FixedEntry;
     use crate::core::field::*;
     use crate::core::mem_table;
     use std::iter::zip;
@@ -104,19 +104,19 @@ mod tests {
     fn check_append() {
         let mut mem_table = mem_table::MemTable::new(3);
 
-        let entry1 = Entry::new(
+        let entry1 = FixedEntry::new(
             FixedField::new(FieldType::Int32(33)),
             FixedField::new(FieldType::Int32(330)),
         );
         mem_table.append(entry1.clone());
 
-        let entry2 = Entry::new(
+        let entry2 = FixedEntry::new(
             FixedField::new(FieldType::Int32(34)),
             FixedField::new(FieldType::Int32(340)),
         );
         mem_table.append(entry2.clone());
 
-        let entry3 = Entry::new(
+        let entry3 = FixedEntry::new(
             FixedField::new(FieldType::Int32(35)),
             FixedField::new(FieldType::Int32(350)),
         );

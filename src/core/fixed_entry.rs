@@ -1,19 +1,27 @@
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 
-use crate::core::field::{FixedField, FlexibleField};
+use crate::core::field::FixedField;
 use crate::core::marshal::Marshal;
 use crate::errors::Error;
 
+pub trait WriteEntry {
+
+}
+
+pub trait ReadEntry {
+
+}
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct Entry {
+pub struct FixedEntry {
     pub key: FixedField,
     pub value: FixedField,
 }
 
-impl Entry {
+impl FixedEntry {
     pub fn new(key: FixedField, value: FixedField) -> Self {
-        Entry { key, value }
+        FixedEntry { key, value }
     }
 
     pub fn get_key(&self) -> &FixedField {
@@ -29,7 +37,7 @@ impl Entry {
     }
 }
 
-impl Marshal for Entry {
+impl Marshal for FixedEntry {
     fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
         let mut offset = 0;
 
@@ -58,37 +66,14 @@ impl Marshal for Entry {
     }
 }
 
-pub struct FlexibleEntry {
-    pub key: FlexibleField,
-    pub value: FlexibleField,
-}
-
-impl FlexibleEntry {
-    pub fn new(key: FlexibleField, value: FlexibleField) -> Self {
-        FlexibleEntry { key, value }
-    }
-
-    pub fn get_key(&self) -> &FlexibleField {
-        &self.key
-    }
-
-    pub fn get_value(&self) -> &FlexibleField {
-        &self.value
-    }
-
-    pub fn len(&self) -> usize {
-        self.key.len() + self.value.len()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::core::entry::*;
+    use crate::core::fixed_entry::*;
     use crate::core::field::*;
 
     #[test]
     fn test_get_value() {
-        let row = Entry::new(
+        let row = FixedEntry::new(
             FixedField::new(FieldType::Int32(3)),
             FixedField::new(FieldType::Int32(30)),
         );
@@ -98,7 +83,7 @@ mod tests {
 
     #[test]
     fn serialization() {
-        let entry = Entry::new(
+        let entry = FixedEntry::new(
             FixedField::new(FieldType::Int32(3)),
             FixedField::new(FieldType::Int32(33)),
         );
@@ -107,7 +92,7 @@ mod tests {
         let result = entry.serialize(&mut entry_buffer_raw);
         assert!(result.is_ok());
 
-        let mut entry_out = Entry::new(
+        let mut entry_out = FixedEntry::new(
             FixedField::new(FieldType::Int32(0)),
             FixedField::new(FieldType::Int32(0)),
         );
