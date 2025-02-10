@@ -4,9 +4,9 @@ use std::iter::Iterator;
 use std::path::Path;
 
 use crate::core::entry::flexible_entry::FlexibleEntry;
+use crate::core::field::FieldSize;
 use crate::core::segment::offset::Offset;
 use crate::errors::{Error, Result};
-use crate::core::field::FieldSize;
 
 pub struct FlexibleWriter<'a> {
     buf: BufWriter<File>,

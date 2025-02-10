@@ -3,13 +3,13 @@ use crate::errors::Result;
 use crate::core::field::FieldSize;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct Entry<K, V> (K, V);
-
+pub struct Entry<K, V>(K, V);
 
 impl<K, V> Entry<K, V>
 where
     K: FieldSize,
-    V: FieldSize {
+    V: FieldSize,
+{
     pub fn new(key: K, value: V) -> Self {
         Entry { 0: key, 1: value }
     }

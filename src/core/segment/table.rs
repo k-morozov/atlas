@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::rc::Rc;
 
-use super::fixed_segment::FixedSegment;
+use crate::core::schema::Schema;
+use crate::core::segment::fixed_segment::{FixedSegment, FixedSegmentPtr};
 use crate::errors::Error;
 
 pub type Levels = u8;
-pub type Segments = Vec<FixedSegment>;
+pub type Segments = Vec<FixedSegmentPtr>;
 pub type TableSegments = BTreeMap<Levels, Segments>;
 
 pub const SEGMENTS_MIN_LEVEL: Levels = 1;
@@ -25,7 +27,7 @@ fn extract_level(segment_name: &str) -> Option<u8> {
     level.parse::<u8>().ok()
 }
 
-pub fn get_table_segments(table_path: &Path) -> Result<TableSegments, Error> {
+pub fn get_table_segments(table_path: &Path, schema: Rc<Schema>) -> Result<TableSegments, Error> {
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
 
     let segment_names = fs::read_dir(segment_dir)?
@@ -37,7 +39,7 @@ pub fn get_table_segments(table_path: &Path) -> Result<TableSegments, Error> {
 
                     let result = match extract_level(segment_name) {
                         Some(level) => {
-                            let sg = FixedSegment::new(table_path, segment_name);
+                            let sg = FixedSegment::new(table_path, segment_name, schema.clone());
                             (level, sg)
                         }
                         None => panic!("failed parse segment name ={}.", segment_name),

@@ -85,7 +85,6 @@ impl FieldSize for FlexibleField {
     }
 }
 
-
 pub trait FieldSize {
     fn size(&self) -> usize;
 }

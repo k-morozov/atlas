@@ -1,10 +1,9 @@
 use std::mem::MaybeUninit;
 
-use crate::core::field::{FixedField, FieldSize};
+use crate::core::entry::entry;
+use crate::core::field::{FieldSize, FixedField};
 use crate::core::marshal::Marshal;
 use crate::errors::Error;
-use crate::core::entry::entry;
-
 
 pub type FixedEntry = entry::Entry<FixedField, FixedField>;
 

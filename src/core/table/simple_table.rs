@@ -10,8 +10,8 @@ use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
 use crate::core::schema::Schema;
 use crate::core::segment::{
     fixed_segment::FixedSegment,
+    segment::get_path,
     segment_reader::SegmentReader,
-    segment_writer::SegmentWriter,
     table::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
 };
 use crate::core::table::config::{TableConfig, DEFAULT_TABLES_PATH};
@@ -50,17 +50,18 @@ impl SimpleTable {
             panic!("Faield create table dirs")
         }
 
-        let segments = get_table_segments(table_path.as_path());
+        let schema = Rc::new(vec![
+            FixedField::new(FieldType::Int32(0)),
+            FixedField::new(FieldType::Int32(0)),
+        ]);
+
+        let segments = get_table_segments(table_path.as_path(), schema.clone());
+
         if let Err(_) = segments {
             panic!("Faield read segments")
         }
 
         let segments = segments.unwrap();
-
-        let schema = Rc::new(vec![
-            FixedField::new(FieldType::Int32(0)),
-            FixedField::new(FieldType::Int32(0)),
-        ]);
 
         let metadata =
             TableMetadata::from_file(TableMetadata::make_path(table_path.as_path()).as_path());
@@ -85,6 +86,7 @@ impl SimpleTable {
             self.table_path.as_path(),
             &mut self.metadata.segment_id,
             &mut self.mem_table,
+            self.schema.clone(),
         ) {
             Ok(segment_from_mem_table) => {
                 self.segments
@@ -117,6 +119,7 @@ impl Table for SimpleTable {
                     &mut self.segments,
                     self.table_path.as_path(),
                     &mut self.metadata.segment_id,
+                    self.schema.clone(),
                 );
             }
         }
@@ -132,7 +135,7 @@ impl Table for SimpleTable {
         for (_level, segments) in &self.segments {
             for segment in segments {
                 let reader = SegmentReader::new(
-                    FixedSegment::get_path(self.table_path.as_path(), segment.get_name()).as_path(),
+                    get_path(self.table_path.as_path(), segment.get_name()).as_path(),
                     self.schema.clone(),
                 );
                 if let Some(r) = reader.read(&key)? {
@@ -151,7 +154,6 @@ mod tests {
     use std::io::ErrorKind;
 
     use super::*;
-    use crate::core::entry::fixed_entry::*;
     use crate::core::field::*;
 
     fn prepare_dir() {
