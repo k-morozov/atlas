@@ -40,5 +40,5 @@ pub trait WriteEntry<K, V> {
 }
 
 pub trait ReadEntry<K, V> {
-    fn read(&mut self, key: &K) -> Result<Option<V>>;
+    fn read(&self, key: &K) -> Result<Option<V>>;
 }

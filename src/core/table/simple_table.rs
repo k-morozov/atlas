@@ -134,12 +134,14 @@ impl Table for SimpleTable {
 
         for (_level, segments) in &self.segments {
             for segment in segments {
-                let reader = SegmentReader::new(
-                    get_path(self.table_path.as_path(), segment.get_name()).as_path(),
-                    self.schema.clone(),
-                );
-                if let Some(r) = reader.read(&key)? {
-                    return Ok(Some(r));
+                match segment.read(&key) {
+                    Ok(v) => match v {
+                        Some(v) => return Ok(Some(v)),
+                        None => continue,
+                    },
+                    Err(e) => {
+                        return Err(e);
+                    }
                 }
             }
         }

@@ -97,7 +97,7 @@ impl WriteEntry<FixedField, FixedField> for FixedSegment {
 }
 
 impl ReadEntry<FixedField, FixedField> for FixedSegment {
-    fn read(&mut self, key: &FixedField) -> Result<Option<FixedField>> {
+    fn read(&self, key: &FixedField) -> Result<Option<FixedField>> {
         let reader = SegmentReader::new(
             get_path(self.table_path.as_path(), self.get_name()).as_path(),
             self.schema.clone(),
