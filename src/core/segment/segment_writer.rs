@@ -1,13 +1,9 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::iter::Iterator;
 use std::mem::MaybeUninit;
-use std::path::Path;
 use std::slice::from_raw_parts;
 
-use crate::core::entry::entry::{Entry, ReadEntry, WriteEntry};
 use crate::core::entry::fixed_entry::FixedEntry;
-use crate::core::field::FixedField;
 use crate::core::marshal::Marshal;
 use crate::errors::{Error, Result};
 
@@ -22,7 +18,7 @@ impl SegmentWriter {
         }
     }
 
-    pub fn write_entry(&mut self, entry: &Entry<FixedField, FixedField>) -> Result<()> {
+    pub fn write_entry(&mut self, entry: &FixedEntry) -> Result<()> {
         let mut row_buf_raw = vec![MaybeUninit::uninit(); entry.size()];
 
         entry

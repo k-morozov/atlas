@@ -5,12 +5,13 @@ use std::rc::Rc;
 use super::id::SegmentID;
 use super::segment_writer::SegmentWriter;
 use super::table::Levels;
-use crate::core::entry::entry::{Entry, ReadEntry, WriteEntry};
+use crate::core::entry::entry::{ReadEntry, WriteEntry};
+use crate::core::entry::fixed_entry::FixedEntry;
 use crate::core::field::FixedField;
 use crate::core::mem_table::MemTable;
 use crate::core::schema::Schema;
 use crate::core::segment::{
-    segment::{get_path, Segment, SegmentPtr},
+    segment::{get_segment_path, Segment, SegmentPtr},
     segment_reader::SegmentReader,
 };
 use crate::errors::Result;
@@ -33,7 +34,7 @@ impl FixedSegment {
         let segment_id = sgm_id.get_and_next();
 
         let segment_name = format!("segment_{:07}_1.bin", segment_id);
-        let segment_path = get_path(table_path, &segment_name);
+        let segment_path = get_segment_path(table_path, &segment_name);
 
         let wfd = File::create(segment_path)?;
         let mut writer = SegmentWriter::new(wfd);
@@ -54,7 +55,7 @@ impl FixedSegment {
         let segment_id = sgm_id.get_and_next();
 
         let segment_name = format!("segment_{:07}_{}.bin", segment_id, level);
-        let segment_path = get_path(table_path, &segment_name);
+        let segment_path = get_segment_path(table_path, &segment_name);
 
         if let Err(er) = File::create(segment_path.as_path()) {
             panic!(
@@ -87,7 +88,7 @@ impl Segment<FixedField, FixedField> for FixedSegment {
 }
 
 impl WriteEntry<FixedField, FixedField> for FixedSegment {
-    fn write(&mut self, _entry: Entry<FixedField, FixedField>) -> Result<()> {
+    fn write(&mut self, _entry: FixedEntry) -> Result<()> {
         Ok(())
     }
 }
@@ -95,7 +96,7 @@ impl WriteEntry<FixedField, FixedField> for FixedSegment {
 impl ReadEntry<FixedField, FixedField> for FixedSegment {
     fn read(&self, key: &FixedField) -> Result<Option<FixedField>> {
         let reader = SegmentReader::new(
-            get_path(self.table_path.as_path(), self.get_name()).as_path(),
+            get_segment_path(self.table_path.as_path(), self.get_name()).as_path(),
             self.schema.clone(),
         );
         if let Some(r) = reader.read(&key)? {

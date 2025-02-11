@@ -28,10 +28,13 @@ fn simple() {
             FlexibleField::new((index + 10).to_le_bytes().to_vec()),
         ));
     }
-    let mut writer = FlexibleWriter::new(path, entries.iter());
-    let result = writer.write_entries();
 
-    assert!(result.is_ok());
+    let mut writer = FlexibleWriter::new(path);
+    for entry in entries {
+        let result = writer.write_entry(&entry);
+        assert!(result.is_ok());
+    }
+    writer.flush().unwrap();
 
     for index in (1..MAX_SIZE).step_by(1) {
         let reader = FlexibleReader::new(path);
@@ -77,10 +80,12 @@ fn diffrent_types() {
         ));
     }
 
-    let mut writer = FlexibleWriter::new(path, entries.iter());
-    let result = writer.write_entries();
-
-    assert!(result.is_ok());
+    let mut writer = FlexibleWriter::new(path);
+    for entry in entries {
+        let result = writer.write_entry(&entry);
+        assert!(result.is_ok());
+    }
+    writer.flush().unwrap();
 
     for index in (1..6u32).step_by(1) {
         let reader = FlexibleReader::new(path);

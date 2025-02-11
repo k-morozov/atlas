@@ -10,8 +10,6 @@ use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
 use crate::core::schema::Schema;
 use crate::core::segment::{
     fixed_segment::FixedSegment,
-    segment::get_path,
-    segment_reader::SegmentReader,
     table::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
 };
 use crate::core::table::config::{TableConfig, DEFAULT_TABLES_PATH};

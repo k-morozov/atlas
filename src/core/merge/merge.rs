@@ -3,10 +3,7 @@ use std::io::copy;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::core::segment::{
-    id::SegmentID,
-    segment::{get_path, Segment},
-};
+use crate::core::segment::{id::SegmentID, segment::get_segment_path};
 
 use crate::core::segment::{
     fixed_segment,
@@ -50,7 +47,7 @@ pub fn merge_segments(
 }
 
 fn merge_impl(dst: &mut fixed_segment::FixedSegmentPtr, srcs: &Segments) {
-    let dst_path = get_path(dst.get_table_path(), dst.get_name());
+    let dst_path = get_segment_path(dst.get_table_path(), dst.get_name());
 
     let mut options: OpenOptions = OpenOptions::new();
     options.write(true).create(true);
@@ -65,7 +62,7 @@ fn merge_impl(dst: &mut fixed_segment::FixedSegmentPtr, srcs: &Segments) {
     };
 
     for src in srcs {
-        let src_path = get_path(src.get_table_path(), src.get_name());
+        let src_path = get_segment_path(src.get_table_path(), src.get_name());
         let mut src_fd: File = match File::open(src_path.as_path()) {
             Ok(fd) => fd,
             Err(er) => panic!("merge: error={}, path={}", er, dst_path.as_path().display()),
@@ -83,7 +80,7 @@ fn merge_impl(dst: &mut fixed_segment::FixedSegmentPtr, srcs: &Segments) {
     }
 
     for src in srcs {
-        let src_path = get_path(src.get_table_path(), src.get_name());
+        let src_path = get_segment_path(src.get_table_path(), src.get_name());
         match std::fs::remove_file(src_path) {
             Ok(_) => {}
             Err(er) => panic!(
