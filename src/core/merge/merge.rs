@@ -10,7 +10,6 @@ use crate::core::segment::{
 
 use crate::core::segment::{
     fixed_segment,
-    segment::SegmentPtr,
     table::{Segments, TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL},
 };
 use crate::core::table::config::DEFAULT_SEGMENTS_LIMIT;

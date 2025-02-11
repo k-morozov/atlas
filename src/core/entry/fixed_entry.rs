@@ -21,6 +21,7 @@ impl Marshal for FixedEntry {
 
         Ok(())
     }
+
     fn deserialize(&mut self, src: &[u8]) -> Result<(), Error> {
         let mut offset = 0;
 

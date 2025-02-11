@@ -89,6 +89,8 @@ impl SimpleTable {
             self.schema.clone(),
         ) {
             Ok(segment_from_mem_table) => {
+                // write entries
+
                 self.segments
                     .entry(SEGMENTS_MIN_LEVEL)
                     .or_insert_with(Vec::new)

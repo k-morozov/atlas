@@ -35,14 +35,14 @@ impl FixedSegment {
         let segment_name = format!("segment_{:07}_1.bin", segment_id);
         let segment_path = get_path(table_path, &segment_name);
 
-        let mut writer = SegmentWriter::new(Path::new(&segment_path), mem_table.iter());
-        writer.write_entries()?;
+        let wfd = File::create(segment_path)?;
+        let mut writer = SegmentWriter::new(wfd);
+        for entry in mem_table.into_iter() {
+            writer.write_entry(entry)?;
+        }
+        writer.flush()?;
 
-        Ok(Box::new(Self {
-            table_path: table_path.to_path_buf(),
-            segment_name,
-            schema,
-        }))
+        Ok(Self::new(table_path, segment_name.as_str(), schema))
     }
 
     pub fn for_merge(
@@ -64,11 +64,7 @@ impl FixedSegment {
             );
         };
 
-        Ok(Box::new(Self {
-            table_path: table_path.to_path_buf(),
-            segment_name,
-            schema,
-        }))
+        Ok(Self::new(table_path, segment_name.as_str(), schema))
     }
 
     pub fn new(table_path: &Path, segment_name: &str, schema: Rc<Schema>) -> FixedSegmentPtr {
@@ -105,6 +101,7 @@ impl ReadEntry<FixedField, FixedField> for FixedSegment {
         if let Some(r) = reader.read(&key)? {
             return Ok(Some(r));
         }
+
         Ok(None)
     }
 }
