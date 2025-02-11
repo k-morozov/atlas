@@ -11,7 +11,7 @@ use crate::core::field::FixedField;
 use crate::core::mem_table::MemTable;
 use crate::core::schema::Schema;
 use crate::core::segment::{
-    segment::{get_segment_path, Segment, SegmentPtr},
+    segment::{get_segment_name, get_segment_name_by_level, get_segment_path, Segment, SegmentPtr},
     segment_reader::SegmentReader,
 };
 use crate::errors::Result;
@@ -33,7 +33,7 @@ impl FixedSegment {
     ) -> Result<FixedSegmentPtr> {
         let segment_id = sgm_id.get_and_next();
 
-        let segment_name = format!("segment_{:07}_1.bin", segment_id);
+        let segment_name = get_segment_name(segment_id);
         let segment_path = get_segment_path(table_path, &segment_name);
 
         let wfd = File::create(segment_path)?;
@@ -54,7 +54,7 @@ impl FixedSegment {
     ) -> Result<FixedSegmentPtr> {
         let segment_id = sgm_id.get_and_next();
 
-        let segment_name = format!("segment_{:07}_{}.bin", segment_id, level);
+        let segment_name = get_segment_name_by_level(segment_id, level);
         let segment_path = get_segment_path(table_path, &segment_name);
 
         if let Err(er) = File::create(segment_path.as_path()) {
