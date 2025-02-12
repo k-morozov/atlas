@@ -41,4 +41,6 @@ pub trait WriteEntry<K, V> {
 
 pub trait ReadEntry<K, V> {
     fn read(&self, key: &K) -> Result<Option<V>>;
+    fn read_entry_by_index(&self, index: u64) -> Result<Option<Entry<K, V>>>;
+    fn read_size(&self) -> Result<u64>;
 }

@@ -1,7 +1,6 @@
 use std::iter::IntoIterator;
 
 use crate::core::entry::{fixed_entry::FixedEntry, flexible_entry::FlexibleEntry};
-use crate::core::field::FixedField;
 
 use super::field::FlexibleField;
 

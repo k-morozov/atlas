@@ -1,94 +1,74 @@
-use std::fs::{File, OpenOptions};
-use std::io::copy;
 use std::path::Path;
-use std::rc::Rc;
 
-use crate::core::segment::{id::SegmentID, segment::get_segment_path};
-
+use crate::core::segment::segment::get_segment_name_by_level;
 use crate::core::segment::{
-    fixed_segment,
-    table::{Segments, TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL},
+    id::SegmentID, segment::get_segment_path, segment_builder::FlexibleSegmentBuilder,
 };
+
+use crate::core::segment::table::{TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL};
 use crate::core::table::config::DEFAULT_SEGMENTS_LIMIT;
 
 pub fn is_ready_to_merge(table: &TableSegments) -> bool {
     table[&SEGMENTS_MIN_LEVEL].len() == DEFAULT_SEGMENTS_LIMIT
 }
 
-pub fn merge_segments(
-    table: &mut TableSegments,
-    table_path: &Path,
-    sgm_id: &mut SegmentID,
-    schema: Rc<crate::core::schema::Schema>,
-) {
-    unreachable!()
-    // for merged_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
-    //     let level_for_new_sg = if merged_level != SEGMENTS_MAX_LEVEL {
-    //         merged_level + 1
-    //     } else {
-    //         merged_level
-    //     };
-    //     match fixed_segment::FixedSegment::for_merge(
-    //         table_path,
-    //         sgm_id,
-    //         schema.clone(),
-    //         level_for_new_sg,
-    //     ) {
-    //         Ok(mut merged_sg) => {
-    //             merge_impl(&mut merged_sg, &table[&merged_level]);
-    //             table.get_mut(&merged_level).unwrap().clear();
-    //             table
-    //                 .entry(level_for_new_sg)
-    //                 .or_insert_with(Vec::new)
-    //                 .push(merged_sg);
-    //         }
-    //         Err(_) => panic!("Failed create segment for merge"),
-    //     }
-    // }
-}
+pub fn merge_segments(table: &mut TableSegments, table_path: &Path, sgm_id: &mut SegmentID) {
+    let segment_id = sgm_id.get_and_next();
 
-fn merge_impl(dst: &mut fixed_segment::FixedSegmentPtr, srcs: &Segments) {
-    let dst_path = get_segment_path(dst.get_table_path(), dst.get_name());
+    for merging_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
+        // @todo
+        match table.get(&merging_level) {
+            Some(segments_by_level) => {
+                if segments_by_level.len() != DEFAULT_SEGMENTS_LIMIT {
+                    continue;
+                }
+            }
+            None => continue,
+        }
 
-    let mut options: OpenOptions = OpenOptions::new();
-    options.write(true).create(true);
-
-    let mut dst_fd = match options.open(dst_path.as_path()) {
-        Ok(fd) => fd,
-        Err(er) => panic!(
-            "merge: open dst error={}, path={}",
-            er,
-            dst_path.as_path().display()
-        ),
-    };
-
-    for src in srcs {
-        let src_path = get_segment_path(src.get_table_path(), src.get_name());
-        let mut src_fd: File = match File::open(src_path.as_path()) {
-            Ok(fd) => fd,
-            Err(er) => panic!("merge: error={}, path={}", er, dst_path.as_path().display()),
+        let level_for_new_sg = if merging_level != SEGMENTS_MAX_LEVEL {
+            merging_level + 1
+        } else {
+            merging_level
         };
 
-        match copy(&mut src_fd, &mut dst_fd) {
-            Ok(_n) => {}
-            Err(er) => panic!(
-                "failed copy: error={}, dst={}, src={}",
-                er,
-                dst.get_name(),
-                src.get_name()
-            ),
-        }
-    }
+        let segment_name = get_segment_name_by_level(segment_id, level_for_new_sg);
+        let segment_path = get_segment_path(table_path, &segment_name);
 
-    for src in srcs {
-        let src_path = get_segment_path(src.get_table_path(), src.get_name());
-        match std::fs::remove_file(src_path) {
-            Ok(_) => {}
-            Err(er) => panic!(
-                "failed remove merged segment: error={}, src={}",
-                er,
-                src.get_name()
-            ),
-        }
+        let merging_segments = &table[&merging_level];
+
+        let merged_segment = merging_segments
+            .into_iter()
+            .fold(
+                FlexibleSegmentBuilder::new(segment_path.as_path())
+                    .set_table_path(table_path)
+                    .set_segment_name(&segment_name)
+                    .prepare_empty_segment(),
+                |mut builder, merging_segment| {
+                    for entry in merging_segment.into_iter() {
+                        builder = builder.append_entry(&entry);
+                    }
+                    let src_path = get_segment_path(
+                        merging_segment.get_table_path(),
+                        merging_segment.get_name(),
+                    );
+                    match std::fs::remove_file(src_path) {
+                        Ok(_) => {}
+                        Err(er) => panic!(
+                            "failed remove merged segment: error={}, src={}",
+                            er,
+                            merging_segment.get_name()
+                        ),
+                    }
+                    builder
+                },
+            )
+            .build();
+
+        table.get_mut(&merging_level).unwrap().clear();
+        table
+            .entry(level_for_new_sg)
+            .or_insert_with(Vec::new)
+            .push(merged_segment);
     }
 }

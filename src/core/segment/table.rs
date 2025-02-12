@@ -1,14 +1,8 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
-use std::rc::Rc;
 
-use crate::core::schema::Schema;
-use crate::core::segment::{
-    // fixed_segment::{FixedSegment, FixedSegmentPtr},
-    flexible_segment::{FlexibleSegment, FlexibleSegmentPtr},
-    segment::SegmentPtr,
-};
+use crate::core::segment::flexible_segment::{FlexibleSegment, FlexibleSegmentPtr};
 use crate::errors::Error;
 
 pub type Levels = u8;

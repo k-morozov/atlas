@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::core::entry::entry::{ReadEntry, WriteEntry};
+use crate::core::entry::entry::{Entry, ReadEntry, WriteEntry};
 
 use super::table::Levels;
 
@@ -24,4 +24,47 @@ pub fn get_segment_name(segment_id: u64) -> String {
 pub fn get_segment_name_by_level(segment_id: u64, level: Levels) -> String {
     let segment_name = format!("segment_{:07}_{}.bin", segment_id, level);
     segment_name
+}
+
+pub struct SegmentIterator<'a, K, V> {
+    segment: &'a dyn Segment<K, V>,
+    index: u64,
+    max_index: u64,
+}
+
+impl<'a, K, V> Iterator for SegmentIterator<'a, K, V> {
+    type Item = Entry<K, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index == self.max_index {
+            return None;
+        }
+        match self.segment.read_entry_by_index(self.index) {
+            Ok(r) => {
+                self.index += 1;
+                return r;
+            }
+            Err(e) => {
+                panic!("failed read iterator: {}", e)
+            }
+        }
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a dyn Segment<K, V> {
+    type Item = Entry<K, V>;
+    type IntoIter = SegmentIterator<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let max_index = match self.read_size() {
+            Ok(idx) => idx,
+            Err(er) => panic!("failed read max index: {}", er),
+        };
+
+        SegmentIterator {
+            segment: self,
+            index: 0,
+            max_index,
+        }
+    }
 }

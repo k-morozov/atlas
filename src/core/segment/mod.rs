@@ -1,4 +1,4 @@
-pub mod fixed_segment;
+// pub mod fixed_segment;
 pub mod flexible_reader;
 pub mod flexible_segment;
 pub mod flexible_writer;

@@ -1,18 +1,13 @@
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 use super::table::Table;
-use crate::core::entry::fixed_entry::FixedEntry;
 use crate::core::entry::flexible_entry::FlexibleEntry;
-use crate::core::field::{FieldType, FixedField, FlexibleField};
+use crate::core::field::FlexibleField;
 use crate::core::mem_table::MemTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
-use crate::core::schema::Schema;
 use crate::core::segment::segment::{get_segment_name, get_segment_path};
 use crate::core::segment::{
-    // fixed_segment::FixedSegment,
-    flexible_segment::FlexibleSegment,
     segment_builder::FlexibleSegmentBuilder,
     table::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
 };
@@ -117,12 +112,13 @@ impl Table for SimpleTable {
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
             self.save_mem_table();
 
+            // @todo
             if is_ready_to_merge(&self.segments) {
-                // merge_segments(
-                //     &mut self.segments,
-                //     self.table_path.as_path(),
-                //     &mut self.metadata.segment_id,
-                // );
+                merge_segments(
+                    &mut self.segments,
+                    self.table_path.as_path(),
+                    &mut self.metadata.segment_id,
+                );
             }
         }
 
@@ -160,6 +156,7 @@ mod tests {
     use super::*;
     use crate::core::field::*;
 
+    // @todo
     fn prepare_dir() {
         let path = Path::new(DEFAULT_TABLES_PATH);
         if let Err(er) = remove_file(path) {
@@ -266,63 +263,53 @@ mod tests {
         drop_dir(SimpleTable::table_path(table_name).as_path());
     }
 
-    // #[test]
-    // fn test_merge_sements() {
-    //     prepare_dir();
+    #[test]
+    fn test_merge_sements() {
+        prepare_dir();
 
-    //     let table_name = "test_merge_sements";
-    //     let config = TableConfig::default_config();
+        let table_name = "test_merge_sements";
+        let config = TableConfig::default_config();
 
-    //     let mut table = SimpleTable::new(table_name, config.clone());
+        let mut table = SimpleTable::new(table_name, config.clone());
 
-    //     for index in 0..5 * config.mem_table_size {
-    //         let entry = FlexibleEntry::new(
-    //             FixedField::new(FieldType::Int32(index as i32)),
-    //             FixedField::new(FieldType::Int32((index as i32) * 10)),
-    //         );
-    //         table.put(entry).unwrap();
-    //     }
+        for index in 0..5 * config.mem_table_size as u8 {
+            let entry = FlexibleEntry::new(
+                FlexibleField::new(vec![index, 3, 4]),
+                FlexibleField::new(vec![index * 2, 30, 40]),
+            );
+            table.put(entry).unwrap();
+        }
 
-    //     for index in 0..5 * config.mem_table_size {
-    //         let result = table
-    //             .get(FixedField::new(FieldType::Int32(index as i32)))
-    //             .unwrap();
-    //         assert_eq!(
-    //             result.unwrap(),
-    //             FixedField::new(FieldType::Int32((index as i32) * 10))
-    //         );
-    //     }
+        for index in 0..5 * config.mem_table_size as u8 {
+            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
+        }
 
-    //     // drop_dir(SimpleTable::table_path(table_name).as_path());
-    // }
+        drop_dir(SimpleTable::table_path(table_name).as_path());
+    }
 
-    // #[test]
-    // fn test_merge_sements_max_level() {
-    //     prepare_dir();
+    #[test]
+    fn test_merge_sements_max_level() {
+        prepare_dir();
 
-    //     let table_name = "test_merge_sements_max_level";
-    //     let config = TableConfig::default_config();
+        let table_name = "test_merge_sements_max_level";
+        let config = TableConfig::default_config();
 
-    //     let mut table = SimpleTable::new(table_name, config.clone());
+        let mut table = SimpleTable::new(table_name, config.clone());
 
-    //     for index in 0..64 * config.mem_table_size {
-    //         let entry = FlexibleEntry::new(
-    //             FixedField::new(FieldType::Int32(index as i32)),
-    //             FixedField::new(FieldType::Int32((index as i32) * 10)),
-    //         );
-    //         table.put(entry).unwrap();
-    //     }
+        for index in 0..64 * (config.mem_table_size - 1) as u8 {
+            let entry = FlexibleEntry::new(
+                FlexibleField::new(vec![index, 3, 4]),
+                FlexibleField::new(vec![index, 30, 40]),
+            );
+            table.put(entry).unwrap();
+        }
 
-    //     for index in 0..64 * config.mem_table_size {
-    //         let result = table
-    //             .get(FixedField::new(FieldType::Int32(index as i32)))
-    //             .unwrap();
-    //         assert_eq!(
-    //             result.unwrap(),
-    //             FixedField::new(FieldType::Int32((index as i32) * 10))
-    //         );
-    //     }
+        for index in 0..64 * (config.mem_table_size - 1) as u8 {
+            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            assert_eq!(result.unwrap(), FlexibleField::new(vec![index, 30, 40]));
+        }
 
-    //     drop_dir(SimpleTable::table_path(table_name).as_path());
-    // }
+        drop_dir(SimpleTable::table_path(table_name).as_path());
+    }
 }

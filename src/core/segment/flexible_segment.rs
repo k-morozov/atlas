@@ -74,4 +74,22 @@ impl ReadEntry<FlexibleField, FlexibleField> for FlexibleSegment {
 
         Ok(None)
     }
+
+    fn read_entry_by_index(&self, index: u64) -> Result<Option<FlexibleEntry>> {
+        let reader = FlexibleReader::new(
+            get_segment_path(self.table_path.as_path(), self.get_name()).as_path(),
+        );
+        if let Some(r) = reader.read_by_index(index as u32)? {
+            return Ok(Some(r));
+        }
+
+        Ok(None)
+    }
+
+    fn read_size(&self) -> Result<u64> {
+        let reader = FlexibleReader::new(
+            get_segment_path(self.table_path.as_path(), self.get_name()).as_path(),
+        );
+        reader.read_size()
+    }
 }
