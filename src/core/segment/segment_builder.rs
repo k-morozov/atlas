@@ -9,15 +9,15 @@ use super::{
 
 pub struct FlexibleSegmentBuilder {
     writer: FlexibleWriter,
-    building_segment: Option<Box<FlexibleSegment>>,
+    building_segment: Option<FlexibleSegmentPtr>,
     table_path: Option<PathBuf>,
     segment_name: Option<String>,
 }
 
 impl FlexibleSegmentBuilder {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path_to_segment: &Path) -> Self {
         FlexibleSegmentBuilder {
-            writer: FlexibleWriter::new(path),
+            writer: FlexibleWriter::new(path_to_segment),
             building_segment: None,
             table_path: None,
             segment_name: None,
@@ -45,15 +45,15 @@ impl FlexibleSegmentBuilder {
             None => panic!("build_empty_segment without segment_name"),
         };
 
-        self.building_segment = Some(Box::new(FlexibleSegment::new(
+        self.building_segment = Some(FlexibleSegment::new(
             table_path.as_path(),
             segment_name.as_str(),
-        )));
+        ));
         self
     }
 
-    pub fn append_entry(&mut self, entry: FlexibleEntry) -> &mut Self {
-        if let Err(_er) = self.writer.write_entry(&entry) {
+    pub fn append_entry(&mut self, entry: &FlexibleEntry) -> &mut Self {
+        if let Err(_er) = self.writer.write_entry(entry) {
             panic!("Failed write in builder")
         }
         self

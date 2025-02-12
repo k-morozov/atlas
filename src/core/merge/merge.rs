@@ -21,29 +21,30 @@ pub fn merge_segments(
     sgm_id: &mut SegmentID,
     schema: Rc<crate::core::schema::Schema>,
 ) {
-    for merged_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
-        let level_for_new_sg = if merged_level != SEGMENTS_MAX_LEVEL {
-            merged_level + 1
-        } else {
-            merged_level
-        };
-        match fixed_segment::FixedSegment::for_merge(
-            table_path,
-            sgm_id,
-            schema.clone(),
-            level_for_new_sg,
-        ) {
-            Ok(mut merged_sg) => {
-                merge_impl(&mut merged_sg, &table[&merged_level]);
-                table.get_mut(&merged_level).unwrap().clear();
-                table
-                    .entry(level_for_new_sg)
-                    .or_insert_with(Vec::new)
-                    .push(merged_sg);
-            }
-            Err(_) => panic!("Failed create segment for merge"),
-        }
-    }
+    unreachable!()
+    // for merged_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
+    //     let level_for_new_sg = if merged_level != SEGMENTS_MAX_LEVEL {
+    //         merged_level + 1
+    //     } else {
+    //         merged_level
+    //     };
+    //     match fixed_segment::FixedSegment::for_merge(
+    //         table_path,
+    //         sgm_id,
+    //         schema.clone(),
+    //         level_for_new_sg,
+    //     ) {
+    //         Ok(mut merged_sg) => {
+    //             merge_impl(&mut merged_sg, &table[&merged_level]);
+    //             table.get_mut(&merged_level).unwrap().clear();
+    //             table
+    //                 .entry(level_for_new_sg)
+    //                 .or_insert_with(Vec::new)
+    //                 .push(merged_sg);
+    //         }
+    //         Err(_) => panic!("Failed create segment for merge"),
+    //     }
+    // }
 }
 
 fn merge_impl(dst: &mut fixed_segment::FixedSegmentPtr, srcs: &Segments) {

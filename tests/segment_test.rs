@@ -164,7 +164,7 @@ fn simple_flexible_segment() {
                 .set_segment_name(segment_name.as_str())
                 .set_table_path(table_path)
                 .prepare_empty_segment(),
-            |builder, entry| builder.append_entry(entry),
+            |builder, entry| builder.append_entry(&entry),
         )
         .build();
 

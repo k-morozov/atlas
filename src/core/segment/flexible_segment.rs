@@ -25,7 +25,7 @@ pub struct FlexibleSegment {
 }
 
 impl FlexibleSegment {
-    pub fn new(table_path: &Path, segment_name: &str) -> Self {
+    pub fn new(table_path: &Path, segment_name: &str) -> FlexibleSegmentPtr {
         let segment_path = get_segment_path(table_path, &segment_name);
 
         if let Err(er) = File::create(segment_path.as_path()) {
@@ -36,10 +36,10 @@ impl FlexibleSegment {
             );
         };
 
-        Self {
+        Box::new(Self {
             table_path: table_path.to_path_buf(),
             segment_name: segment_name.to_string(),
-        }
+        })
     }
 }
 

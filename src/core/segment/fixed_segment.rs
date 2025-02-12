@@ -25,26 +25,26 @@ pub struct FixedSegment {
 }
 
 impl FixedSegment {
-    pub fn create(
-        table_path: &Path,
-        sgm_id: &mut SegmentID,
-        mem_table: &mut MemTable,
-        schema: Rc<Schema>,
-    ) -> Result<FixedSegmentPtr> {
-        let segment_id = sgm_id.get_and_next();
+    // pub fn create(
+    //     table_path: &Path,
+    //     sgm_id: &mut SegmentID,
+    //     mem_table: &mut MemTable,
+    //     schema: Rc<Schema>,
+    // ) -> Result<FixedSegmentPtr> {
+    //     let segment_id = sgm_id.get_and_next();
 
-        let segment_name = get_segment_name(segment_id);
-        let segment_path = get_segment_path(table_path, &segment_name);
+    //     let segment_name = get_segment_name(segment_id);
+    //     let segment_path = get_segment_path(table_path, &segment_name);
 
-        let wfd = File::create(segment_path)?;
-        let mut writer = SegmentWriter::new(wfd);
-        for entry in mem_table.into_iter() {
-            writer.write_entry(entry)?;
-        }
-        writer.flush()?;
+    //     let wfd = File::create(segment_path)?;
+    //     let mut writer = SegmentWriter::new(wfd);
+    //     for entry in mem_table.into_iter() {
+    //         writer.write_entry(entry)?;
+    //     }
+    //     writer.flush()?;
 
-        Ok(Self::new(table_path, segment_name.as_str(), schema))
-    }
+    //     Ok(Self::new(table_path, segment_name.as_str(), schema))
+    // }
 
     pub fn for_merge(
         table_path: &Path,
