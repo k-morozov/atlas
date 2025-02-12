@@ -1,5 +1,5 @@
 use std::{
-    fs::File,
+    fs::{File, OpenOptions},
     path::{Path, PathBuf},
 };
 
@@ -28,7 +28,11 @@ impl FlexibleSegment {
     pub fn new(table_path: &Path, segment_name: &str) -> FlexibleSegmentPtr {
         let segment_path = get_segment_path(table_path, &segment_name);
 
-        if let Err(er) = File::create(segment_path.as_path()) {
+        // @todo open in read-only after fill
+        let mut options = OpenOptions::new();
+        options.write(true).create(true);
+
+        if let Err(er) = options.open(segment_path.as_path()) {
             panic!(
                 "FlexibleSegment: Failed to create part. path={}, error= {}",
                 segment_path.display(),

@@ -183,12 +183,6 @@ mod tests {
     fn test_segment() {
         prepare_dir();
 
-        // let table_path = Path::new("/tmp/kvs/test/test_table_segment");
-        // let segment_name = get_segment_name(12);
-        // let segment_path = format!(
-        //     "/tmp/kvs/test/test_table_segment/segment/{}",
-        //     segment_name
-        // );
         let table_name = "test_table_segment";
 
         let config = TableConfig::default_config();
@@ -213,76 +207,64 @@ mod tests {
         drop_dir(SimpleTable::table_path(table_name).as_path());
     }
 
-    // #[test]
-    // fn test_some_segments() {
-    //     prepare_dir();
+    #[test]
+    fn test_some_segments() {
+        prepare_dir();
 
-    //     let table_name = "test_table_some_segments";
-    //     let config = TableConfig::default_config();
-    //     let mut table = SimpleTable::new(table_name, config.clone());
+        let table_name = "test_table_some_segments";
+        let config = TableConfig::default_config();
+        let mut table = SimpleTable::new(table_name, config.clone());
 
-    //     for index in 0..3 * config.mem_table_size {
-    //         let entry = FixedEntry::new(
-    //             FixedField::new(FieldType::Int32(index as i32)),
-    //             FixedField::new(FieldType::Int32((index as i32) * 10)),
-    //         );
-    //         table.put(entry).unwrap();
-    //     }
+        for index in 0..3 * config.mem_table_size as u8 {
+            let entry = FlexibleEntry::new(
+                FlexibleField::new(vec![index, 3, 4]),
+                FlexibleField::new(vec![index * 10, 30, 40]),
+            );
+            table.put(entry).unwrap();
+        }
 
-    //     for index in 0..3 * config.mem_table_size {
-    //         let result = table
-    //             .get(FixedField::new(FieldType::Int32(index as i32)))
-    //             .unwrap();
-    //         assert_eq!(
-    //             result.unwrap(),
-    //             FixedField::new(FieldType::Int32((index as i32) * 10))
-    //         );
-    //     }
+        for index in 0..3 * config.mem_table_size as u8 {
+            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            assert_eq!(
+                result.unwrap(),
+                FlexibleField::new(vec![index * 10, 30, 40])
+            );
+        }
 
-    //     drop_dir(SimpleTable::table_path(table_name).as_path());
-    // }
+        drop_dir(SimpleTable::table_path(table_name).as_path());
+    }
 
-    // #[test]
-    // fn test_some_segments_with_restart() {
-    //     prepare_dir();
+    #[test]
+    fn test_some_segments_with_restart() {
+        prepare_dir();
 
-    //     let table_name = "test_table_some_segments_with_restart";
-    //     let config = TableConfig::default_config();
-    //     {
-    //         let mut table = SimpleTable::new(table_name, config.clone());
+        let table_name = "test_table_some_segments_with_restart";
+        let config = TableConfig::default_config();
+        {
+            let mut table = SimpleTable::new(table_name, config.clone());
 
-    //         for index in 0..10 * config.mem_table_size {
-    //             let entry = FixedEntry::new(
-    //                 FixedField::new(FieldType::Int32(index as i32)),
-    //                 FixedField::new(FieldType::Int32((index as i32) * 10)),
-    //             );
-    //             table.put(entry).unwrap();
-    //         }
+            for index in 0..10 * config.mem_table_size as u8 {
+                let entry = FlexibleEntry::new(
+                    FlexibleField::new(vec![index, 3, 4]),
+                    FlexibleField::new(vec![index * 2, 30, 40]),
+                );
+                table.put(entry).unwrap();
+            }
 
-    //         for index in 0..10 * config.mem_table_size {
-    //             let result = table
-    //                 .get(FixedField::new(FieldType::Int32(index as i32)))
-    //                 .unwrap();
-    //             assert_eq!(
-    //                 result.unwrap(),
-    //                 FixedField::new(FieldType::Int32((index as i32) * 10))
-    //             );
-    //         }
-    //     }
+            for index in 0..10 * config.mem_table_size as u8 {
+                let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+                assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
+            }
+        }
 
-    //     let table = SimpleTable::new(table_name, config.clone());
-    //     for index in 0..10 * config.mem_table_size {
-    //         let result = table
-    //             .get(FixedField::new(FieldType::Int32(index as i32)))
-    //             .unwrap();
-    //         assert_eq!(
-    //             result.unwrap(),
-    //             FixedField::new(FieldType::Int32((index as i32) * 10))
-    //         );
-    //     }
+        let table = SimpleTable::new(table_name, config.clone());
+        for index in 0..10 * config.mem_table_size as u8 {
+            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
+        }
 
-    //     drop_dir(SimpleTable::table_path(table_name).as_path());
-    // }
+        drop_dir(SimpleTable::table_path(table_name).as_path());
+    }
 
     // #[test]
     // fn test_merge_sements() {
@@ -294,7 +276,7 @@ mod tests {
     //     let mut table = SimpleTable::new(table_name, config.clone());
 
     //     for index in 0..5 * config.mem_table_size {
-    //         let entry = FixedEntry::new(
+    //         let entry = FlexibleEntry::new(
     //             FixedField::new(FieldType::Int32(index as i32)),
     //             FixedField::new(FieldType::Int32((index as i32) * 10)),
     //         );
@@ -324,7 +306,7 @@ mod tests {
     //     let mut table = SimpleTable::new(table_name, config.clone());
 
     //     for index in 0..64 * config.mem_table_size {
-    //         let entry = FixedEntry::new(
+    //         let entry = FlexibleEntry::new(
     //             FixedField::new(FieldType::Int32(index as i32)),
     //             FixedField::new(FieldType::Int32((index as i32) * 10)),
     //         );
