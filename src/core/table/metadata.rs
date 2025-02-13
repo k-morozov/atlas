@@ -22,17 +22,17 @@ impl TableMetadata {
         &self.metadata_path
     }
 
-    pub fn make_path(table_path: &Path) -> PathBuf {
-        let mut metadata_path = table_path.to_path_buf();
+    pub fn make_path<P: AsRef<Path>>(table_path: P) -> PathBuf {
+        let mut metadata_path = table_path.as_ref().to_path_buf();
         metadata_path.push("metadata");
 
         metadata_path
     }
 
-    pub fn from_file(metadata_path: &Path) -> Self {
+    pub fn from_file<P: AsRef<Path> + Copy>(metadata_path: P) -> Self {
         let mut metadata = TableMetadata {
             segment_id: SegmentID::new(),
-            metadata_path: metadata_path.to_path_buf(),
+            metadata_path: metadata_path.as_ref().to_path_buf(),
         };
 
         match exists(metadata_path) {
@@ -48,7 +48,7 @@ impl TableMetadata {
                                     panic!(
                                         "broken metadata: {}, path={}",
                                         data,
-                                        metadata_path.display()
+                                        metadata_path.as_ref().display()
                                     );
                                 }
                             }
@@ -56,7 +56,7 @@ impl TableMetadata {
                         Err(er) => {
                             panic!(
                                 "Failed to open table metadata. metadata_path={}, error= {}",
-                                metadata_path.display(),
+                                metadata_path.as_ref().display(),
                                 er
                             );
                         }
@@ -66,7 +66,7 @@ impl TableMetadata {
                     if let Err(er) = result_create {
                         panic!(
                             "Failed to create table metadata. metadata_path={}, error= {}",
-                            metadata_path.display(),
+                            metadata_path.as_ref().display(),
                             er
                         );
                     };
