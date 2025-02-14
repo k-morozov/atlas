@@ -24,7 +24,6 @@ fn create_dirs(table_path: &Path) -> Result<(), Error> {
 }
 
 pub struct SimpleTable {
-    table_name: String,
     table_path: PathBuf,
 
     mem_table: MemTable,
@@ -38,18 +37,16 @@ pub struct SimpleTable {
 }
 
 impl SimpleTable {
-    pub fn new(table_name: &str, config: TableConfig) -> Self {
-        let table_path = SimpleTable::table_path(table_name);
-
-        if let Err(er) = create_dirs(table_path.as_path()) {
+    pub fn new<P: AsRef<Path>>(table_path: P, config: TableConfig) -> Self {
+        if let Err(er) = create_dirs(table_path.as_ref()) {
             panic!(
                 "Faield create table dirs: table_path={}, error={}",
-                table_path.display(),
+                table_path.as_ref().display(),
                 er
             )
         }
 
-        let segments = get_table_segments(table_path.as_path());
+        let segments = get_table_segments(table_path.as_ref());
 
         if let Err(_) = segments {
             panic!("Faield read segments")
@@ -61,8 +58,7 @@ impl SimpleTable {
 
         Self {
             mem_table: MemTable::new(config.mem_table_size),
-            table_name: table_name.to_string(),
-            table_path,
+            table_path: table_path.as_ref().to_path_buf(),
             metadata,
             segments,
             config,
@@ -150,97 +146,49 @@ impl Table for SimpleTable {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
     use std::io;
+    use tempfile::Builder;
 
     use super::*;
     use crate::core::field::*;
     use crate::core::table::config::DEFAULT_TEST_TABLES_PATH;
 
-    fn remove_dir_contents<P: AsRef<Path>>(path: P) -> io::Result<()> {
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let path = entry.path();
+    #[test]
+    fn test_segment() -> io::Result<()> {
+        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+        let table_path = tmp_dir.path().join("test_segment");
 
-            if entry.file_type()?.is_dir() {
-                remove_dir_contents(&path)?;
-                fs::remove_dir(path)?;
-            } else {
-                fs::remove_file(path)?;
+        {
+            let config = TableConfig::default_config();
+            let mut table = SimpleTable::new(table_path, config.clone());
+
+            for index in 0..=config.mem_table_size as u8 {
+                let entry = FlexibleEntry::new(
+                    FlexibleField::new(vec![index, 3, 4]),
+                    FlexibleField::new(vec![index * 10, 30, 40]),
+                );
+                table.put(entry).unwrap();
+            }
+
+            for index in 0..=config.mem_table_size as u8 {
+                let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+                assert_eq!(
+                    result.unwrap(),
+                    FlexibleField::new(vec!(index * 10, 30, 40))
+                );
             }
         }
+
         Ok(())
     }
 
-    struct TestDirs {
-        path: PathBuf,
-    }
-
-    impl TestDirs {
-        fn new(table_name: &str) -> Self {
-            let path = format!("{}{}", DEFAULT_TEST_TABLES_PATH, table_name);
-            let path = Path::new(&path);
-
-            if let Err(er) = remove_dir_contents(path) {
-                match er.kind() {
-                    io::ErrorKind::NotFound => {}
-                    _ => panic!(
-                        "failed remove dir for create: path={}, {}",
-                        path.display(),
-                        er
-                    ),
-                }
-            }
-
-            return TestDirs {
-                path: path.to_path_buf(),
-            };
-        }
-    }
-
-    impl Drop for TestDirs {
-        fn drop(&mut self) {
-            if let Err(er) = remove_dir_contents(&self.path) {
-                match er.kind() {
-                    io::ErrorKind::NotFound => {}
-                    _ => panic!("unexpected errror from remove_dir_all: {}", er),
-                }
-            }
-        }
-    }
-
     #[test]
-    fn test_segment() {
-        let table_name = "test_table_segment";
-        TestDirs::new(table_name);
+    fn test_some_segments() -> io::Result<()> {
+        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+        let table_path = tmp_dir.path().join("test_some_segments");
 
         let config = TableConfig::default_config();
-        let mut table = SimpleTable::new(table_name, config.clone());
-
-        for index in 0..=config.mem_table_size as u8 {
-            let entry = FlexibleEntry::new(
-                FlexibleField::new(vec![index, 3, 4]),
-                FlexibleField::new(vec![index * 10, 30, 40]),
-            );
-            table.put(entry).unwrap();
-        }
-
-        for index in 0..=config.mem_table_size as u8 {
-            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
-            assert_eq!(
-                result.unwrap(),
-                FlexibleField::new(vec!(index * 10, 30, 40))
-            );
-        }
-    }
-
-    #[test]
-    fn test_some_segments() {
-        let table_name = "test_table_some_segments";
-        TestDirs::new(table_name);
-
-        let config = TableConfig::default_config();
-        let mut table = SimpleTable::new(table_name, config.clone());
+        let mut table = SimpleTable::new(table_path, config.clone());
 
         for index in 0..3 * config.mem_table_size as u8 {
             let entry = FlexibleEntry::new(
@@ -257,16 +205,18 @@ mod tests {
                 FlexibleField::new(vec![index * 10, 30, 40])
             );
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_some_segments_with_restart() {
-        let table_name = "test_table_some_segments_with_restart";
-        TestDirs::new(table_name);
+    fn test_some_segments_with_restart() -> io::Result<()> {
+        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+        let table_path = tmp_dir.path().join("test_some_segments_with_restart");
 
         let config = TableConfig::default_config();
         {
-            let mut table = SimpleTable::new(table_name, config.clone());
+            let mut table = SimpleTable::new(&table_path, config.clone());
 
             for index in 0..10 * config.mem_table_size as u8 {
                 let entry = FlexibleEntry::new(
@@ -282,21 +232,23 @@ mod tests {
             }
         }
 
-        let table = SimpleTable::new(table_name, config.clone());
+        let table = SimpleTable::new(&table_path, config.clone());
         for index in 0..10 * config.mem_table_size as u8 {
             let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_merge_sements() {
-        let table_name = "test_table_merge_sements";
-        TestDirs::new(table_name);
+    fn test_merge_sements() -> io::Result<()> {
+        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+        let table_path = tmp_dir.path().join("test_merge_sements");
 
         let config = TableConfig::default_config();
 
-        let mut table = SimpleTable::new(table_name, config.clone());
+        let mut table = SimpleTable::new(table_path, config.clone());
 
         for index in 0..5 * config.mem_table_size as u8 {
             let entry = FlexibleEntry::new(
@@ -310,16 +262,18 @@ mod tests {
             let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_merge_sements_max_level() {
-        let table_name = "test_table_merge_sements_max_level";
-        TestDirs::new(table_name);
+    fn test_merge_sements_max_level() -> io::Result<()> {
+        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+        let table_path = tmp_dir.path().join("test_merge_sements_max_level");
 
         let config = TableConfig::default_config();
 
-        let mut table = SimpleTable::new(table_name, config.clone());
+        let mut table = SimpleTable::new(table_path, config.clone());
 
         for index in 0..64 * (config.mem_table_size - 1) as u8 {
             let entry = FlexibleEntry::new(
@@ -333,5 +287,7 @@ mod tests {
             let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(result.unwrap(), FlexibleField::new(vec![index, 30, 40]));
         }
+
+        Ok(())
     }
 }
