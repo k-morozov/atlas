@@ -155,9 +155,7 @@ mod tests {
 
     #[test]
     fn test_segment() -> io::Result<()> {
-        let Ok(tmp_dir) = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir() else {
-            panic!("Failed create tmp dir: {}", DEFAULT_TEST_TABLES_PATH)
-        };
+        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
         let table_path = tmp_dir.path().join("test_segment");
 
         {
