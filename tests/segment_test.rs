@@ -15,9 +15,7 @@ use kvs::core::segment::{
 
 #[test]
 fn simple() -> io::Result<()> {
-    let path_to_segment = Builder::new()
-        .prefix("/tmp/kvs/test/create_flex_segment/part1.bin")
-        .tempfile()?;
+    let path_to_segment = Builder::new().prefix("/tmp/part1.bin").tempfile()?;
 
     let mut entries: Vec<FlexibleEntry> = Vec::new();
 
@@ -52,9 +50,7 @@ fn simple() -> io::Result<()> {
 
 #[test]
 fn diffrent_types() -> io::Result<()> {
-    let path_to_segment = Builder::new()
-        .prefix("/tmp/kvs/test/flex_segment_diffrent_type/part1.bin")
-        .tempfile()?;
+    let path_to_segment = Builder::new().prefix("/tmp/part1.bin").tempfile()?;
 
     let mut entries: Vec<FlexibleEntry> = Vec::new();
 
