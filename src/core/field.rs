@@ -19,8 +19,10 @@ impl FixedField {
     pub fn new(value: FieldType) -> Self {
         FixedField { value }
     }
+}
 
-    pub fn size(&self) -> usize {
+impl FieldSize for FixedField {
+    fn size(&self) -> usize {
         match self.value {
             FieldType::Int32(_) => size_of::<i32>(),
         }
@@ -60,6 +62,31 @@ impl Marshal for FixedField {
         }
         Ok(())
     }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+pub struct FlexibleField {
+    pub data: Vec<u8>,
+}
+
+impl FlexibleField {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+}
+
+impl FieldSize for FlexibleField {
+    fn size(&self) -> usize {
+        self.len() * size_of::<u8>()
+    }
+}
+
+pub trait FieldSize {
+    fn size(&self) -> usize;
 }
 
 #[cfg(test)]

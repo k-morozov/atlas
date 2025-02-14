@@ -1,57 +1,38 @@
-use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::mem::MaybeUninit;
 
-use crate::core::field::FixedField;
+use crate::core::entry::entry;
+use crate::core::field::{FieldSize, FixedField};
 use crate::core::marshal::Marshal;
 use crate::errors::Error;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct Entry {
-    pub key: FixedField,
-    pub value: FixedField,
-}
+pub type FixedEntry = entry::Entry<FixedField, FixedField>;
 
-impl Entry {
-    pub fn new(key: FixedField, value: FixedField) -> Self {
-        Entry { key, value }
-    }
-
-    pub fn get_key(&self) -> &FixedField {
-        &self.key
-    }
-
-    pub fn get_value(&self) -> &FixedField {
-        &self.value
-    }
-
-    pub fn size(&self) -> usize {
-        self.key.size() + self.value.size()
-    }
-}
-
-impl Marshal for Entry {
+impl Marshal for FixedEntry {
     fn serialize(&self, dst: &mut [MaybeUninit<u8>]) -> Result<(), Error> {
         let mut offset = 0;
 
-        self.key
-            .serialize(&mut dst[offset..offset + self.key.size()])?;
-        offset += self.key.size();
+        self.get_key()
+            .serialize(&mut dst[offset..offset + self.get_key().size()])?;
+        offset += self.get_key().size();
 
-        self.value
-            .serialize(&mut dst[offset..offset + self.value.size()])?;
+        self.get_value()
+            .serialize(&mut dst[offset..offset + self.get_value().size()])?;
         // offset += self.value.size();
 
         Ok(())
     }
+
     fn deserialize(&mut self, src: &[u8]) -> Result<(), Error> {
         let mut offset = 0;
 
-        self.key
-            .deserialize(&src[offset..offset + self.key.size()])?;
-        offset += self.key.size();
+        let field_size = self.get_key().size();
+        self.get_mut_key()
+            .deserialize(&src[offset..offset + field_size])?;
+        offset += self.get_key().size();
 
-        self.value
-            .deserialize(&src[offset..offset + self.value.size()])?;
+        let field_size = self.get_value().size();
+        self.get_mut_value()
+            .deserialize(&src[offset..offset + field_size])?;
         // offset += self.value.size();
 
         Ok(())
@@ -60,12 +41,12 @@ impl Marshal for Entry {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::entry::*;
+    use crate::core::entry::fixed_entry::*;
     use crate::core::field::*;
 
     #[test]
     fn test_get_value() {
-        let row = Entry::new(
+        let row = FixedEntry::new(
             FixedField::new(FieldType::Int32(3)),
             FixedField::new(FieldType::Int32(30)),
         );
@@ -75,7 +56,7 @@ mod tests {
 
     #[test]
     fn serialization() {
-        let entry = Entry::new(
+        let entry = FixedEntry::new(
             FixedField::new(FieldType::Int32(3)),
             FixedField::new(FieldType::Int32(33)),
         );
@@ -84,7 +65,7 @@ mod tests {
         let result = entry.serialize(&mut entry_buffer_raw);
         assert!(result.is_ok());
 
-        let mut entry_out = Entry::new(
+        let mut entry_out = FixedEntry::new(
             FixedField::new(FieldType::Int32(0)),
             FixedField::new(FieldType::Int32(0)),
         );
@@ -98,7 +79,10 @@ mod tests {
         assert!(result.is_ok());
 
         assert_eq!(*entry_out.get_key(), FixedField::new(FieldType::Int32(3)));
-        assert_eq!(*entry_out.get_value(), FixedField::new(FieldType::Int32(33)));
+        assert_eq!(
+            *entry_out.get_value(),
+            FixedField::new(FieldType::Int32(33))
+        );
 
         assert_eq!(entry_out.size(), 2 * size_of::<i32>());
     }

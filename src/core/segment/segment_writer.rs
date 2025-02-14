@@ -1,64 +1,42 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::iter::Iterator;
 use std::mem::MaybeUninit;
-use std::path::Path;
 use std::slice::from_raw_parts;
 
-use crate::core::entry::Entry;
+use crate::core::entry::fixed_entry::FixedEntry;
 use crate::core::marshal::Marshal;
 use crate::errors::{Error, Result};
 
-pub struct SegmentWriter<'a> {
+pub struct SegmentWriter {
     buf: BufWriter<File>,
-    row_it: Option<Box<dyn Iterator<Item = &'a Entry> + 'a>>,
 }
 
-impl<'a> SegmentWriter<'a> {
-    pub fn new<T>(path_to_segment: &Path, row_it: T) -> Self
-    where
-        T: Iterator<Item = &'a Entry> + 'a,
-    {
-        let result_create = File::create(path_to_segment);
-        if let Err(er) = result_create {
-            panic!(
-                "Failed to create new part. path={}, error= {}",
-                path_to_segment.display(),
-                er
-            );
-        };
-
+impl SegmentWriter {
+    pub fn new(wfd: File) -> Self {
         Self {
-            buf: BufWriter::new(result_create.unwrap()),
-            row_it: Some(Box::new(row_it)),
+            buf: BufWriter::new(wfd),
         }
     }
 
-    // trait Writer is more suitable?
-    pub fn write_entries(&mut self) -> Result<()> {
-        if self.row_it.is_none() {
-            return Err(Error::InvalidData("empty rows".to_string()));
-        }
-        let row_it = self
-            .row_it
-            .take()
-            .ok_or(Error::InvalidData("Failed take from rows".to_string()))?;
+    pub fn write_entry(&mut self, entry: &FixedEntry) -> Result<()> {
+        let mut row_buf_raw = vec![MaybeUninit::uninit(); entry.size()];
 
-        for row in row_it {
-            let mut row_buf_raw = vec![MaybeUninit::uninit(); row.size()];
+        entry
+            .serialize(&mut row_buf_raw)
+            .map_err(|_| Error::InvalidData("empty".to_string()))?;
 
-            row.serialize(&mut row_buf_raw)
-                .map_err(|_| Error::InvalidData("empty".to_string()))?;
+        let row_buf_initialized =
+            unsafe { from_raw_parts(row_buf_raw.as_ptr() as *const u8, entry.size()) };
 
-            let row_buf_initialized =
-                unsafe { from_raw_parts(row_buf_raw.as_ptr() as *const u8, row.size()) };
+        self.buf
+            .write_all(&row_buf_initialized)
+            .map_err(|_| Error::InvalidData("empty".to_string()))?;
 
-            self.buf
-                .write_all(&row_buf_initialized)
-                .map_err(|_| Error::InvalidData("empty".to_string()))?;
-            self.buf.flush()?;
-        }
+        Ok(())
+    }
 
+    pub fn flush(&mut self) -> Result<()> {
+        self.buf.flush()?;
         Ok(())
     }
 }
@@ -69,7 +47,7 @@ mod test {
     use std::io::ErrorKind;
     use std::path::Path;
 
-    use crate::core::field::{FixedField, FieldType};
+    use crate::core::field::{FieldType, FixedField};
     use crate::core::segment::segment_writer::*;
 
     #[test]
@@ -84,16 +62,19 @@ mod test {
             assert_eq!(ErrorKind::NotFound, er.kind());
         }
 
-        let mut entries: Vec<Entry> = Vec::new();
+        let mut entries: Vec<FixedEntry> = Vec::new();
 
         for index in 1..4 {
-            entries.push(Entry::new(
+            entries.push(FixedEntry::new(
                 FixedField::new(FieldType::Int32(index)),
                 FixedField::new(FieldType::Int32(index * 10)),
             ));
         }
-        let mut writer = SegmentWriter::new(path, entries.iter());
-        let result = writer.write_entries();
+
+        let wfd = File::create(path).unwrap();
+
+        let mut writer = SegmentWriter::new(wfd);
+        let result = writer.write_entry(&entries[0]);
 
         assert!(result.is_ok());
     }
