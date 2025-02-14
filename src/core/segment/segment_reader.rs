@@ -4,7 +4,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::core::entry::fixed_entry::FixedEntry;
-use crate::core::field::{FieldSize, FixedField};
+use crate::core::field::FixedField;
 use crate::core::marshal::Marshal;
 use crate::core::schema::{schema_size, Schema};
 use crate::errors::Result;

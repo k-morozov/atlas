@@ -2,7 +2,6 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use kvs::core::table::config::DEFAULT_TEST_TABLES_PATH;
 use tempfile::Builder;
 
 use kvs::core::entry::flexible_entry::FlexibleEntry;

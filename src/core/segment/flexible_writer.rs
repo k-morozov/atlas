@@ -1,13 +1,11 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::iter::Iterator;
 use std::path::Path;
 
-use crate::core::entry::entry::Entry;
 use crate::core::entry::flexible_entry::FlexibleEntry;
-use crate::core::field::{FieldSize, FlexibleField};
+use crate::core::field::FieldSize;
 use crate::core::segment::offset::Offset;
-use crate::errors::{Error, Result};
+use crate::errors::Result;
 
 pub struct FlexibleWriter {
     buf: BufWriter<File>,
