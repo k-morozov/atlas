@@ -16,12 +16,12 @@ pub struct FlexibleWriter {
 }
 
 impl FlexibleWriter {
-    pub fn new(path_to_segment: &Path) -> Self {
-        let result_create = File::create(path_to_segment);
+    pub fn new<P: AsRef<Path>>(path_to_segment: P) -> Self {
+        let result_create = File::create(path_to_segment.as_ref());
         if let Err(er) = result_create {
             panic!(
                 "Failed to create new part. path={}, error= {}",
-                path_to_segment.display(),
+                path_to_segment.as_ref().display(),
                 er
             );
         };

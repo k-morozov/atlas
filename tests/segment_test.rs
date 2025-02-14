@@ -1,6 +1,9 @@
-use std::fs::{create_dir_all, remove_file};
-use std::io::ErrorKind;
+use std::fs;
+use std::io;
 use std::path::Path;
+
+use kvs::core::table::config::DEFAULT_TEST_TABLES_PATH;
+use tempfile::Builder;
 
 use kvs::core::entry::flexible_entry::FlexibleEntry;
 use kvs::core::field::FlexibleField;
@@ -11,16 +14,10 @@ use kvs::core::segment::{
 };
 
 #[test]
-fn simple() {
-    let path = Path::new("/tmp/kvs/test/create_flex_segment/part1.bin");
-
-    if let Some(parent) = path.parent() {
-        create_dir_all(parent).unwrap();
-    }
-
-    if let Err(er) = remove_file(path) {
-        assert_eq!(ErrorKind::NotFound, er.kind());
-    }
+fn simple() -> io::Result<()> {
+    let path_to_segment = Builder::new()
+        .prefix("/tmp/kvs/test/create_flex_segment/part1.bin")
+        .tempfile()?;
 
     let mut entries: Vec<FlexibleEntry> = Vec::new();
 
@@ -33,7 +30,7 @@ fn simple() {
         ));
     }
 
-    let mut writer = FlexibleWriter::new(path);
+    let mut writer = FlexibleWriter::new(&path_to_segment);
     for entry in entries {
         let result = writer.write_entry(&entry);
         assert!(result.is_ok());
@@ -41,7 +38,7 @@ fn simple() {
     writer.flush().unwrap();
 
     for index in (1..MAX_SIZE).step_by(1) {
-        let reader = FlexibleReader::new(path);
+        let reader = FlexibleReader::new(&path_to_segment);
         let actual = reader
             .read(&FlexibleField::new(index.to_le_bytes().to_vec()))
             .unwrap()
@@ -49,19 +46,15 @@ fn simple() {
         let expected = FlexibleField::new((index + 10).to_le_bytes().to_vec());
         assert_eq!(actual, expected);
     }
+
+    Ok(())
 }
 
 #[test]
-fn diffrent_types() {
-    let path = Path::new("/tmp/kvs/test/flex_segment_diffrent_type/part1.bin");
-
-    if let Some(parent) = path.parent() {
-        create_dir_all(parent).unwrap();
-    }
-
-    if let Err(er) = remove_file(path) {
-        assert_eq!(ErrorKind::NotFound, er.kind());
-    }
+fn diffrent_types() -> io::Result<()> {
+    let path_to_segment = Builder::new()
+        .prefix("/tmp/kvs/test/flex_segment_diffrent_type/part1.bin")
+        .tempfile()?;
 
     let mut entries: Vec<FlexibleEntry> = Vec::new();
 
@@ -84,7 +77,7 @@ fn diffrent_types() {
         ));
     }
 
-    let mut writer = FlexibleWriter::new(path);
+    let mut writer = FlexibleWriter::new(&path_to_segment);
     for entry in entries {
         let result = writer.write_entry(&entry);
         assert!(result.is_ok());
@@ -92,7 +85,7 @@ fn diffrent_types() {
     writer.flush().unwrap();
 
     for index in (1..6u32).step_by(1) {
-        let reader = FlexibleReader::new(path);
+        let reader = FlexibleReader::new(&path_to_segment);
         let actual = reader
             .read(&FlexibleField::new(index.to_le_bytes().to_vec()))
             .unwrap()
@@ -103,7 +96,7 @@ fn diffrent_types() {
     }
 
     for index in (7..15u32).step_by(1) {
-        let reader = FlexibleReader::new(path);
+        let reader = FlexibleReader::new(&path_to_segment);
 
         let key = format!("{}-some-key", index);
         let actual = reader
@@ -117,7 +110,7 @@ fn diffrent_types() {
     }
 
     for index in (15..20u32).step_by(1) {
-        let reader = FlexibleReader::new(path);
+        let reader = FlexibleReader::new(&path_to_segment);
 
         let key = format!("{}-some-key", index);
         let actual = reader
@@ -126,10 +119,12 @@ fn diffrent_types() {
 
         assert_eq!(actual, None);
     }
+
+    Ok(())
 }
 
 #[test]
-fn simple_flexible_segment() {
+fn simple_flexible_segment() -> io::Result<()> {
     let table_path = Path::new("/tmp/kvs/test/simple_flexible_segment");
     let segment_name = get_segment_name(12);
     let segment_path = format!(
@@ -139,11 +134,11 @@ fn simple_flexible_segment() {
     let segment_path: &Path = Path::new(&segment_path);
 
     if let Some(parent) = segment_path.parent() {
-        create_dir_all(parent).unwrap();
+        fs::create_dir_all(parent).unwrap();
     }
 
-    if let Err(er) = remove_file(segment_path) {
-        assert_eq!(ErrorKind::NotFound, er.kind());
+    if let Err(er) = fs::remove_file(segment_path) {
+        assert_eq!(io::ErrorKind::NotFound, er.kind());
     }
 
     let mut entries: Vec<FlexibleEntry> = Vec::new();
@@ -160,7 +155,7 @@ fn simple_flexible_segment() {
     let segment = entries
         .into_iter()
         .fold(
-            FlexibleSegmentBuilder::new(segment_path)
+            FlexibleSegmentBuilder::new(&segment_path)
                 .set_segment_name(segment_name.as_str())
                 .set_table_path(table_path)
                 .prepare_empty_segment(),
@@ -177,4 +172,6 @@ fn simple_flexible_segment() {
         let expected = FlexibleField::new((index + 10).to_le_bytes().to_vec());
         assert_eq!(actual, expected);
     }
+
+    Ok(())
 }

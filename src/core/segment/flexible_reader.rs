@@ -13,13 +13,13 @@ pub struct FlexibleReader {
 }
 
 impl FlexibleReader {
-    pub fn new(path_to_part: &Path) -> Self {
-        let fd = match File::open(path_to_part) {
+    pub fn new<P: AsRef<Path>>(path_to_part: P) -> Self {
+        let fd = match File::open(path_to_part.as_ref()) {
             Ok(fd) => fd,
             Err(er) => panic!(
                 "FlexibleReader: error={}, path={}",
                 er,
-                path_to_part.display()
+                path_to_part.as_ref().display()
             ),
         };
         FlexibleReader { fd }

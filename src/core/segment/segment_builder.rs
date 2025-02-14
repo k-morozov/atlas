@@ -15,7 +15,7 @@ pub struct FlexibleSegmentBuilder {
 }
 
 impl FlexibleSegmentBuilder {
-    pub fn new(path_to_segment: &Path) -> Self {
+    pub fn new<P: AsRef<Path>>(path_to_segment: P) -> Self {
         FlexibleSegmentBuilder {
             writer: FlexibleWriter::new(path_to_segment),
             building_segment: None,
