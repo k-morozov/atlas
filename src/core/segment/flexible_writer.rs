@@ -2,30 +2,33 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
+
 use crate::core::entry::flexible_entry::FlexibleEntry;
 use crate::core::field::FieldSize;
 use crate::core::segment::offset::Offset;
 use crate::errors::Result;
 
 pub struct FlexibleWriter {
-    buf: BufWriter<File>,
+    buf: Option<BufWriter<File>>,
     entries_offsets: Vec<(Offset, Offset)>,
     segment_offset: u32,
 }
 
 impl FlexibleWriter {
     pub fn new<P: AsRef<Path>>(path_to_segment: P) -> Self {
-        let result_create = File::create(path_to_segment.as_ref());
-        if let Err(er) = result_create {
-            panic!(
-                "Failed to create new part. path={}, error= {}",
-                path_to_segment.as_ref().display(),
-                er
-            );
+        let fd = match File::create(path_to_segment.as_ref()) {
+            Ok(fd) => fd,
+            Err(er) => {
+                panic!(
+                    "Failed to create new part. path={}, error= {}",
+                    path_to_segment.as_ref().display(),
+                    er
+                );
+            }
         };
 
         Self {
-            buf: BufWriter::new(result_create.unwrap()),
+            buf: Some(BufWriter::new(fd)),
             entries_offsets: Vec::<(Offset, Offset)>::new(),
             segment_offset: 0,
         }
@@ -48,13 +51,24 @@ impl FlexibleWriter {
             },
         ));
 
-        self.buf.write(&entry.get_key().data)?;
-        self.buf.write(&entry.get_value().data)?;
+        match &mut self.buf {
+            Some(buf) => {
+                buf.write(&entry.get_key().data)?;
+                buf.write(&entry.get_value().data)?;
+            }
+            None => {
+                panic!("broken buffer")
+            }
+        }
 
         Ok(())
     }
 
     pub fn flush(&mut self) -> Result<()> {
+        let Some(buffer) = &mut self.buf else {
+            panic!("broken buffer")
+        };
+
         for offsets in &self.entries_offsets {
             let temp = vec![
                 offsets.0.start,
@@ -65,14 +79,15 @@ impl FlexibleWriter {
 
             for offset in temp {
                 let bytes = offset.to_le_bytes();
-                self.buf.write(&bytes)?;
+                buffer.write(&bytes)?;
             }
         }
 
-        self.buf
-            .write(&(self.entries_offsets.len() as u32).to_le_bytes())?;
+        buffer.write(&(self.entries_offsets.len() as u32).to_le_bytes())?;
+        buffer.flush()?;
 
-        self.buf.flush()?;
+        let fd: File = self.buf.take().unwrap().into_inner().unwrap();
+        fd.sync_all()?;
 
         Ok(())
     }

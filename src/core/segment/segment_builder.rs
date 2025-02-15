@@ -60,8 +60,8 @@ impl FlexibleSegmentBuilder {
     }
 
     pub fn build(&mut self) -> FlexibleSegmentPtr {
-        if let Err(_) = self.writer.flush() {
-            panic!("Failed flush in builder")
+        if let Err(er) = self.writer.flush() {
+            panic!("Failed flush in builder: {}", er)
         }
 
         match self.building_segment.take() {

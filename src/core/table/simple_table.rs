@@ -103,7 +103,7 @@ impl SimpleTable {
 
 impl Table for SimpleTable {
     fn put(&mut self, entry: FlexibleEntry) -> Result<(), Error> {
-        self.mem_table.append(entry);
+        self.mem_table.append(entry.clone());
 
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
             self.save_mem_table();
@@ -121,14 +121,14 @@ impl Table for SimpleTable {
         Ok(())
     }
 
-    fn get(&self, key: FlexibleField) -> Result<Option<FlexibleField>, Error> {
-        if let Some(value) = self.mem_table.get_value(&key) {
+    fn get(&self, key: &FlexibleField) -> Result<Option<FlexibleField>, Error> {
+        if let Some(value) = self.mem_table.get_value(key) {
             return Ok(Some(value));
         }
 
         for (_level, segments) in &self.segments {
             for segment in segments {
-                match segment.read(&key) {
+                match segment.read(key) {
                     Ok(v) => match v {
                         Some(v) => return Ok(Some(v)),
                         None => continue,
@@ -171,7 +171,7 @@ mod tests {
             }
 
             for index in 0..=config.mem_table_size as u8 {
-                let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+                let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
                 assert_eq!(
                     result.unwrap(),
                     FlexibleField::new(vec!(index * 10, 30, 40))
@@ -199,7 +199,7 @@ mod tests {
         }
 
         for index in 0..3 * config.mem_table_size as u8 {
-            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(
                 result.unwrap(),
                 FlexibleField::new(vec![index * 10, 30, 40])
@@ -227,14 +227,14 @@ mod tests {
             }
 
             for index in 0..10 * config.mem_table_size as u8 {
-                let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+                let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
                 assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
             }
         }
 
         let table = SimpleTable::new(&table_path, config.clone());
         for index in 0..10 * config.mem_table_size as u8 {
-            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
         }
 
@@ -259,7 +259,7 @@ mod tests {
         }
 
         for index in 0..5 * config.mem_table_size as u8 {
-            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
         }
 
@@ -284,7 +284,7 @@ mod tests {
         }
 
         for index in 0..64 * (config.mem_table_size - 1) as u8 {
-            let result = table.get(FlexibleField::new(vec![index, 3, 4])).unwrap();
+            let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(result.unwrap(), FlexibleField::new(vec![index, 30, 40]));
         }
 
