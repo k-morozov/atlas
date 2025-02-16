@@ -34,17 +34,17 @@ impl FlexibleReader {
 
         assert_eq!(bytes, size_of::<u32>());
 
-        let count_offsets = u32::from_le_bytes(buffer);
+        let count_entry_offsets = u32::from_le_bytes(buffer);
 
         let size_entry_offsets = 4 * size_of::<u32>() as u64;
 
         let _offset = self.fd.seek(SeekFrom::Start(
-            offset - count_offsets as u64 * size_entry_offsets,
+            offset - count_entry_offsets as u64 * size_entry_offsets,
         ))?;
 
         let mut entries_offsets = Vec::<(Offset, Offset)>::new();
 
-        for _entry_offset in 0..count_offsets {
+        for _entry_offset in 0..count_entry_offsets {
             let mut buffer = [0u8; size_of::<u32>()];
 
             // read key offset
@@ -102,25 +102,37 @@ impl FlexibleReader {
     }
 
     // @todo
-    pub fn read_by_index(mut self, index: u32) -> Result<Option<FlexibleEntry>> {
+    pub fn read_by_index(&mut self, index: u32) -> Result<Option<FlexibleEntry>> {
         let offset = self.fd.seek(SeekFrom::End(-(size_of::<u32>() as i64)))?;
 
         let mut buffer = [0u8; size_of::<u32>()];
-        let bytes = self.fd.read(&mut buffer)?;
+        let bytes: usize = self.fd.read(&mut buffer)?;
 
         assert_eq!(bytes, size_of::<u32>());
 
-        let count_offsets = u32::from_le_bytes(buffer);
+        let count_entry_offsets = u32::from_le_bytes(buffer);
 
         let size_entry_offsets = 4 * size_of::<u32>() as u64;
+        let size_bytes_offsets = count_entry_offsets as u64 * size_entry_offsets;
+
+        let expected = self.read_size()?;
+        assert!(count_entry_offsets as u64 == expected);
+
+        assert!(
+            offset >= size_bytes_offsets,
+            "offset={:?}, count_entry_offsets={}, size_bytes_offsets={}",
+            offset,
+            count_entry_offsets,
+            size_bytes_offsets
+        );
 
         let _offset = self.fd.seek(SeekFrom::Start(
-            offset - count_offsets as u64 * size_entry_offsets,
+            offset - count_entry_offsets as u64 * size_entry_offsets,
         ))?;
 
         let mut entries_offsets = Vec::<(Offset, Offset)>::new();
 
-        for entry_offset in 0..count_offsets {
+        for entry_offset in 0..count_entry_offsets {
             let mut buffer = [0u8; size_of::<u32>()];
 
             // read key offset
@@ -182,7 +194,7 @@ impl FlexibleReader {
     }
 
     // @todo
-    pub fn read_size(mut self) -> Result<u64> {
+    pub fn read_size(&mut self) -> Result<u64> {
         let _offset = self.fd.seek(SeekFrom::End(-(size_of::<u32>() as i64)))?;
 
         let mut buffer = [0u8; size_of::<u32>()];

@@ -93,6 +93,7 @@ impl TableMetadata {
                         er
                     );
                 }
+                fd.sync_all().unwrap();
             }
             Err(er) => {
                 panic!(

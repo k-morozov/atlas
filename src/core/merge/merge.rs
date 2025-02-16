@@ -13,9 +13,9 @@ pub fn is_ready_to_merge(table: &TableSegments) -> bool {
 }
 
 pub fn merge_segments(table: &mut TableSegments, table_path: &Path, sgm_id: &mut SegmentID) {
-    let segment_id = sgm_id.get_and_next();
-
     for merging_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
+        let segment_id = sgm_id.get_and_next();
+
         // @todo
         match table.get(&merging_level) {
             Some(segments_by_level) => {
@@ -48,22 +48,25 @@ pub fn merge_segments(table: &mut TableSegments, table_path: &Path, sgm_id: &mut
                     for entry in merging_segment.into_iter() {
                         builder = builder.append_entry(&entry);
                     }
-                    let src_path = get_segment_path(
-                        merging_segment.get_table_path(),
-                        merging_segment.get_name(),
-                    );
-                    match std::fs::remove_file(src_path) {
-                        Ok(_) => {}
-                        Err(er) => panic!(
-                            "failed remove merged segment: error={}, src={}",
-                            er,
-                            merging_segment.get_name()
-                        ),
-                    }
                     builder
                 },
             )
             .build();
+
+        for merging_segment in    table.get_mut(&merging_level).unwrap() {
+            let src_path = get_segment_path(
+                merging_segment.get_table_path(),
+                merging_segment.get_name(),
+            );
+            match std::fs::remove_file(src_path) {
+                Ok(_) => {}
+                Err(er) => panic!(
+                    "failed remove merged segment: error={}, src={}",
+                    er,
+                    merging_segment.get_name()
+                ),
+            }
+        }
 
         table.get_mut(&merging_level).unwrap().clear();
         table
