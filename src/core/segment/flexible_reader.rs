@@ -25,7 +25,6 @@ impl FlexibleReader {
         FlexibleReader { fd }
     }
 
-    // @todo
     pub fn read(mut self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
         let offset = self.fd.seek(SeekFrom::End(-(size_of::<u32>() as i64)))?;
 

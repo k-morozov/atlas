@@ -2,7 +2,6 @@ use std::{
     fs::OpenOptions,
     path::{Path, PathBuf},
 };
-
 use crate::core::{
     entry::{
         entry::{ReadEntry, WriteEntry},
@@ -11,7 +10,6 @@ use crate::core::{
     field::FlexibleField,
 };
 use crate::errors::Result;
-
 use super::{
     flexible_reader::FlexibleReader,
     segment::{get_segment_path, Segment, SegmentPtr},
