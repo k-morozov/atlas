@@ -22,6 +22,8 @@ pub struct FlexibleSegment {
     buf: Option<io::BufWriter<fs::File>>,
     entries_offsets: Vec<(Offset, Offset)>,
     segment_offset: u32,
+
+    reader: FlexibleReader,
 }
 
 impl FlexibleSegment {
@@ -50,10 +52,10 @@ impl FlexibleSegment {
 
         Box::new(Self {
             segment_path: segment_path.as_ref().to_path_buf(),
-
             buf: Some(io::BufWriter::new(fd)),
             entries_offsets: Vec::<(Offset, Offset)>::new(),
             segment_offset: 0,
+            reader: FlexibleReader::new(segment_path.as_ref()),
         })
     }
 
@@ -68,10 +70,10 @@ impl FlexibleSegment {
 
         Box::new(Self {
             segment_path: segment_path.as_ref().to_path_buf(),
-
             buf: None,
             entries_offsets: Vec::<(Offset, Offset)>::new(),
             segment_offset: 0,
+            reader: FlexibleReader::new(segment_path.as_ref()),
         })
     }
 }
@@ -149,8 +151,7 @@ impl SegmentWriter<FlexibleField, FlexibleField> for FlexibleSegment {
 
 impl SegmentReader<FlexibleField, FlexibleField> for FlexibleSegment {
     fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        let reader = FlexibleReader::new(self.segment_path.as_path());
-        if let Some(r) = reader.read(&key)? {
+        if let Some(r) = self.reader.read(&key)? {
             return Ok(Some(r));
         }
 
@@ -158,8 +159,7 @@ impl SegmentReader<FlexibleField, FlexibleField> for FlexibleSegment {
     }
 
     fn read_entry_by_index(&self, index: u64) -> Result<Option<FlexibleEntry>> {
-        let mut reader = FlexibleReader::new(self.segment_path.as_path());
-        if let Some(r) = reader.read_by_index(index as u32)? {
+        if let Some(r) = self.reader.read_by_index(index as u32)? {
             return Ok(Some(r));
         }
 
@@ -167,7 +167,6 @@ impl SegmentReader<FlexibleField, FlexibleField> for FlexibleSegment {
     }
 
     fn read_size(&self) -> Result<u64> {
-        let mut reader = FlexibleReader::new(self.segment_path.as_path());
-        reader.read_size()
+        self.reader.read_size()
     }
 }
