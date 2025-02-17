@@ -1,72 +1,42 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use super::flexible_segment::{FlexibleSegment, FlexibleSegmentPtr};
 use crate::core::entry::flexible_entry::FlexibleEntry;
 
-use super::{
-    flexible_segment::{FlexibleSegment, FlexibleSegmentPtr},
-    flexible_writer::FlexibleWriter,
-};
-
 pub struct FlexibleSegmentBuilder {
-    writer: FlexibleWriter,
     building_segment: Option<FlexibleSegmentPtr>,
-    table_path: Option<PathBuf>,
-    segment_name: Option<String>,
 }
 
 impl FlexibleSegmentBuilder {
-    pub fn new<P: AsRef<Path>>(path_to_segment: P) -> Self {
+    pub fn new<P: AsRef<Path>>(segment_path: P) -> Self {
         FlexibleSegmentBuilder {
-            writer: FlexibleWriter::new(path_to_segment),
-            building_segment: None,
-            table_path: None,
-            segment_name: None,
+            building_segment: Some(FlexibleSegment::new(segment_path)),
         }
-    }
-
-    pub fn set_table_path(&mut self, table_path: &Path) -> &mut Self {
-        self.table_path = Some(table_path.to_path_buf());
-        self
-    }
-
-    pub fn set_segment_name(&mut self, segment_name: &str) -> &mut Self {
-        self.segment_name = Some(segment_name.to_string());
-        self
-    }
-
-    pub fn prepare_empty_segment(&mut self) -> &mut Self {
-        let table_path = match &self.table_path {
-            Some(table_path) => table_path,
-            None => panic!("build_empty_segment without table_path"),
-        };
-
-        let segment_name = match &self.segment_name {
-            Some(segment_name) => segment_name,
-            None => panic!("build_empty_segment without segment_name"),
-        };
-
-        self.building_segment = Some(FlexibleSegment::new(
-            table_path.as_path(),
-            segment_name.as_str(),
-        ));
-        self
     }
 
     pub fn append_entry(&mut self, entry: &FlexibleEntry) -> &mut Self {
-        if let Err(_er) = self.writer.write_entry(entry) {
-            panic!("Failed write in builder")
+        match &mut self.building_segment {
+            Some(ptr) => {
+                if let Err(_er) = ptr.write(entry.clone()) {
+                    panic!("Failed write in builder")
+                }
+                self
+            }
+            None => panic!("Failed write entry to None"),
         }
-        self
     }
 
     pub fn build(&mut self) -> FlexibleSegmentPtr {
-        if let Err(er) = self.writer.flush() {
-            panic!("Failed flush in builder: {}", er)
-        }
+        let building_segment = self.building_segment.take();
 
-        match self.building_segment.take() {
-            Some(segment) => segment,
-            None => panic!("building_segment is empty"),
+        match building_segment {
+            Some(mut ptr) => {
+                if let Err(er) = ptr.flush() {
+                    panic!("Failed flush in builder: {}", er)
+                }
+                ptr
+            }
+            None => panic!("Failed build from None"),
         }
     }
 }

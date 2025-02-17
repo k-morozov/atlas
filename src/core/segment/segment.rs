@@ -1,14 +1,25 @@
 use std::path::{Path, PathBuf};
 
-use crate::core::entry::entry::{Entry, ReadEntry, WriteEntry};
-
-use super::table::Levels;
+use super::utils::Levels;
+use crate::core::entry::entry::Entry;
+use crate::errors::Result;
 
 pub type SegmentPtr<K, V> = Box<dyn Segment<K, V>>;
 
-pub trait Segment<K, V>: WriteEntry<K, V> + ReadEntry<K, V> {
-    fn get_table_path(&self) -> &Path;
-    fn get_name(&self) -> &str;
+pub trait SegmentWriter<K, V> {
+    fn write(&mut self, entry: Entry<K, V>) -> Result<()>;
+    fn flush(&mut self) -> Result<()>;
+}
+
+pub trait SegmentReader<K, V> {
+    fn read(&self, key: &K) -> Result<Option<V>>;
+    fn read_entry_by_index(&self, index: u64) -> Result<Option<Entry<K, V>>>;
+    fn read_size(&self) -> Result<u64>;
+}
+
+pub trait Segment<K, V>: SegmentWriter<K, V> + SegmentReader<K, V> {
+    fn get_path(&self) -> &Path;
+    fn remove(&self) -> Result<()>;
 }
 
 pub fn get_segment_path(table_path: &Path, segment_name: &str) -> PathBuf {

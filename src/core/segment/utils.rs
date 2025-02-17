@@ -5,6 +5,8 @@ use std::path::Path;
 use crate::core::segment::flexible_segment::{FlexibleSegment, FlexibleSegmentPtr};
 use crate::errors::Error;
 
+use super::segment::get_segment_path;
+
 pub type Levels = u8;
 pub type Segments = Vec<FlexibleSegmentPtr>;
 pub type TableSegments = BTreeMap<Levels, Segments>;
@@ -37,7 +39,8 @@ pub fn get_table_segments(table_path: &Path) -> Result<TableSegments, Error> {
 
                     let result = match extract_level(segment_name) {
                         Some(level) => {
-                            let sg = FlexibleSegment::new(table_path, segment_name);
+                            let segment_path = get_segment_path(table_path, &segment_name);
+                            let sg = FlexibleSegment::from(segment_path);
                             (level, sg)
                         }
                         None => panic!("failed parse segment name ={}.", segment_name),
@@ -50,9 +53,9 @@ pub fn get_table_segments(table_path: &Path) -> Result<TableSegments, Error> {
             };
             result
         })
-        .fold(BTreeMap::new(), |mut result, (level, segment)| {
-            result.entry(level).or_insert_with(Vec::new).push(segment);
-            result
+        .fold(BTreeMap::new(), |mut table, (level, segment)| {
+            table.entry(level).or_insert_with(Vec::new).push(segment);
+            table
         });
 
     Ok(segments)
