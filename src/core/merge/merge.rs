@@ -1,11 +1,12 @@
 use std::path::Path;
 
-use crate::core::segment::segment::get_segment_name_by_level;
 use crate::core::segment::{
-    id::SegmentID, segment::get_segment_path, segment_builder::FlexibleSegmentBuilder,
+    id::SegmentID,
+    segment::{get_segment_name_by_level, get_segment_path},
+    segment_builder::FlexibleSegmentBuilder,
 };
 
-use crate::core::segment::table::{TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL};
+use crate::core::segment::utils::{TableSegments, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL};
 use crate::core::table::config::DEFAULT_SEGMENTS_LIMIT;
 
 pub fn is_ready_to_merge(table: &TableSegments) -> bool {
@@ -40,30 +41,23 @@ pub fn merge_segments(table: &mut TableSegments, table_path: &Path, sgm_id: &mut
         let merged_segment = merging_segments
             .into_iter()
             .fold(
-                FlexibleSegmentBuilder::new(segment_path.as_path())
-                    .set_table_path(table_path)
-                    .set_segment_name(&segment_name)
-                    .prepare_empty_segment(),
+                FlexibleSegmentBuilder::new(segment_path.as_path()),
                 |mut builder, merging_segment| {
                     for entry in merging_segment.into_iter() {
-                        builder = builder.append_entry(&entry);
+                        builder.append_entry(&entry);
                     }
                     builder
                 },
             )
             .build();
 
-        for merging_segment in    table.get_mut(&merging_level).unwrap() {
-            let src_path = get_segment_path(
-                merging_segment.get_table_path(),
-                merging_segment.get_name(),
-            );
-            match std::fs::remove_file(src_path) {
+        for merging_segment in table.get_mut(&merging_level).unwrap() {
+            match merging_segment.remove() {
                 Ok(_) => {}
                 Err(er) => panic!(
-                    "failed remove merged segment: error={}, src={}",
+                    "failed remove merged segment: path={}, error={}",
+                    merging_segment.get_path().display(),
                     er,
-                    merging_segment.get_name()
                 ),
             }
         }

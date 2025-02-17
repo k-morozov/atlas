@@ -1,71 +1,155 @@
-use std::{
-    fs::OpenOptions,
-    path::{Path, PathBuf},
-};
-use crate::core::{
-    entry::{
-        entry::{ReadEntry, WriteEntry},
-        flexible_entry::FlexibleEntry,
-    },
-    field::FlexibleField,
-};
-use crate::errors::Result;
+use std::fs;
+use std::io;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
 use super::{
     flexible_reader::FlexibleReader,
-    segment::{get_segment_path, Segment, SegmentPtr},
+    segment::{Segment, SegmentPtr, SegmentReader, SegmentWriter},
 };
+use crate::core::segment::offset::Offset;
+use crate::core::{
+    entry::flexible_entry::FlexibleEntry,
+    field::{FieldSize, FlexibleField},
+};
+use crate::errors::Result;
 
 pub type FlexibleSegmentPtr = SegmentPtr<FlexibleField, FlexibleField>;
 
 pub struct FlexibleSegment {
-    table_path: PathBuf,
-    segment_name: String,
+    segment_path: PathBuf,
+
+    buf: Option<io::BufWriter<fs::File>>,
+    entries_offsets: Vec<(Offset, Offset)>,
+    segment_offset: u32,
 }
 
 impl FlexibleSegment {
-    pub fn new(table_path: &Path, segment_name: &str) -> FlexibleSegmentPtr {
-        let segment_path = get_segment_path(table_path, &segment_name);
-
-        // @todo open in read-only after fill
-        let mut options = OpenOptions::new();
+    pub(super) fn new<P: AsRef<Path>>(segment_path: P) -> FlexibleSegmentPtr {
+        let mut options = fs::OpenOptions::new();
         options.write(true).create(true);
 
-        if let Err(er) = options.open(segment_path.as_path()) {
+        if let Err(er) = options.open(segment_path.as_ref()) {
             panic!(
                 "FlexibleSegment: Failed to create part. path={}, error= {}",
-                segment_path.display(),
+                segment_path.as_ref().display(),
+                er
+            );
+        };
+
+        let fd = match fs::File::create(segment_path.as_ref()) {
+            Ok(fd) => fd,
+            Err(er) => {
+                panic!(
+                    "Failed to create new segment. path={}, error= {}",
+                    segment_path.as_ref().display(),
+                    er
+                );
+            }
+        };
+
+        Box::new(Self {
+            segment_path: segment_path.as_ref().to_path_buf(),
+
+            buf: Some(io::BufWriter::new(fd)),
+            entries_offsets: Vec::<(Offset, Offset)>::new(),
+            segment_offset: 0,
+        })
+    }
+
+    pub(super) fn from<P: AsRef<Path>>(segment_path: P) -> FlexibleSegmentPtr {
+        if let Err(er) = fs::File::open(segment_path.as_ref()) {
+            panic!(
+                "FlexibleSegment: Failed to create part. path={}, error= {}",
+                segment_path.as_ref().display(),
                 er
             );
         };
 
         Box::new(Self {
-            table_path: table_path.to_path_buf(),
-            segment_name: segment_name.to_string(),
+            segment_path: segment_path.as_ref().to_path_buf(),
+
+            buf: None,
+            entries_offsets: Vec::<(Offset, Offset)>::new(),
+            segment_offset: 0,
         })
     }
 }
 
 impl Segment<FlexibleField, FlexibleField> for FlexibleSegment {
-    fn get_table_path(&self) -> &Path {
-        &self.table_path
+    fn get_path(&self) -> &Path {
+        self.segment_path.as_path()
     }
 
-    fn get_name(&self) -> &str {
-        &self.segment_name
-    }
-}
-
-impl WriteEntry<FlexibleField, FlexibleField> for FlexibleSegment {
-    fn write(&mut self, _entry: FlexibleEntry) -> Result<()> {
-        unreachable!()
+    fn remove(&self) -> Result<()> {
+        fs::remove_file(self.segment_path.as_path())?;
+        Ok(())
     }
 }
 
-impl ReadEntry<FlexibleField, FlexibleField> for FlexibleSegment {
+impl SegmentWriter<FlexibleField, FlexibleField> for FlexibleSegment {
+    fn write(&mut self, entry: FlexibleEntry) -> Result<()> {
+        let key_offset = self.segment_offset;
+        self.segment_offset += entry.get_key().size() as u32;
+        let value_offset = self.segment_offset;
+        self.segment_offset += entry.get_value().size() as u32;
+
+        self.entries_offsets.push((
+            Offset {
+                start: key_offset,
+                len: entry.get_key().size() as u32,
+            },
+            Offset {
+                start: value_offset,
+                len: entry.get_value().size() as u32,
+            },
+        ));
+
+        match &mut self.buf {
+            Some(buf) => {
+                buf.write(&entry.get_key().data)?;
+                buf.write(&entry.get_value().data)?;
+            }
+            None => {
+                panic!("broken buffer")
+            }
+        }
+
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<()> {
+        let Some(buffer) = &mut self.buf else {
+            panic!("broken buffer")
+        };
+
+        for offsets in &self.entries_offsets {
+            let temp = vec![
+                offsets.0.start,
+                offsets.0.len,
+                offsets.1.start,
+                offsets.1.len,
+            ];
+
+            for offset in temp {
+                let bytes = offset.to_le_bytes();
+                buffer.write(&bytes)?;
+            }
+        }
+
+        buffer.write(&(self.entries_offsets.len() as u32).to_le_bytes())?;
+        buffer.flush()?;
+
+        let fd = self.buf.take().unwrap().into_inner().unwrap();
+        fd.sync_all()?;
+
+        Ok(())
+    }
+}
+
+impl SegmentReader<FlexibleField, FlexibleField> for FlexibleSegment {
     fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        let reader = FlexibleReader::new(
-            get_segment_path(self.table_path.as_path(), self.get_name()).as_path(),
-        );
+        let reader = FlexibleReader::new(self.segment_path.as_path());
         if let Some(r) = reader.read(&key)? {
             return Ok(Some(r));
         }
@@ -74,9 +158,7 @@ impl ReadEntry<FlexibleField, FlexibleField> for FlexibleSegment {
     }
 
     fn read_entry_by_index(&self, index: u64) -> Result<Option<FlexibleEntry>> {
-        let mut reader = FlexibleReader::new(
-            get_segment_path(self.table_path.as_path(), self.get_name()).as_path(),
-        );
+        let mut reader = FlexibleReader::new(self.segment_path.as_path());
         if let Some(r) = reader.read_by_index(index as u32)? {
             return Ok(Some(r));
         }
@@ -85,9 +167,7 @@ impl ReadEntry<FlexibleField, FlexibleField> for FlexibleSegment {
     }
 
     fn read_size(&self) -> Result<u64> {
-        let mut reader = FlexibleReader::new(
-            get_segment_path(self.table_path.as_path(), self.get_name()).as_path(),
-        );
+        let mut reader = FlexibleReader::new(self.segment_path.as_path());
         reader.read_size()
     }
 }

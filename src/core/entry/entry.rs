@@ -1,5 +1,3 @@
-use crate::errors::Result;
-
 use crate::core::field::FieldSize;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
@@ -33,14 +31,4 @@ where
     pub fn size(&self) -> usize {
         self.0.size() + self.1.size()
     }
-}
-
-pub trait WriteEntry<K, V> {
-    fn write(&mut self, entry: Entry<K, V>) -> Result<()>;
-}
-
-pub trait ReadEntry<K, V> {
-    fn read(&self, key: &K) -> Result<Option<V>>;
-    fn read_entry_by_index(&self, index: u64) -> Result<Option<Entry<K, V>>>;
-    fn read_size(&self) -> Result<u64>;
 }

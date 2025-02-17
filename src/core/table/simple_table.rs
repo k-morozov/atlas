@@ -6,13 +6,15 @@ use crate::core::entry::flexible_entry::FlexibleEntry;
 use crate::core::field::FlexibleField;
 use crate::core::mem_table::MemTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
-use crate::core::segment::segment::{get_segment_name, get_segment_path};
 use crate::core::segment::{
+    segment::{get_segment_name, get_segment_path},
     segment_builder::FlexibleSegmentBuilder,
-    table::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
+    utils::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
 };
-use crate::core::table::config::{TableConfig, DEFAULT_TEST_TABLES_PATH};
-use crate::core::table::metadata::TableMetadata;
+use crate::core::table::{
+    config::{TableConfig, DEFAULT_TEST_TABLES_PATH},
+    metadata::TableMetadata,
+};
 use crate::errors::Error;
 
 fn create_dirs(table_path: &Path) -> Result<(), Error> {
@@ -53,7 +55,6 @@ impl SimpleTable {
         }
 
         let segments = segments.unwrap();
-
         let metadata = TableMetadata::from_file(TableMetadata::make_path(&table_path).as_path());
 
         Self {
@@ -80,11 +81,11 @@ impl SimpleTable {
             .mem_table
             .into_iter()
             .fold(
-                FlexibleSegmentBuilder::new(&segment_path)
-                    .set_segment_name(&segment_name)
-                    .set_table_path(self.table_path.as_path())
-                    .prepare_empty_segment(),
-                |builder, entry| builder.append_entry(entry),
+                FlexibleSegmentBuilder::new(segment_path.as_path()),
+                |mut builder, entry| {
+                    builder.append_entry(entry);
+                    builder
+                },
             )
             .build();
 
