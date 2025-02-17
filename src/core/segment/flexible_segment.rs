@@ -7,10 +7,10 @@ use super::{
     flexible_reader::FlexibleReader,
     segment::{Segment, SegmentPtr, SegmentReader, SegmentWriter},
 };
-use crate::core::segment::offset::Offset;
 use crate::core::{
     entry::flexible_entry::FlexibleEntry,
     field::{FieldSize, FlexibleField},
+    segment::offset::Offset,
 };
 use crate::errors::Result;
 
