@@ -40,7 +40,7 @@ pub fn get_table_segments(table_path: &Path) -> Result<TableSegments, Error> {
                     let result = match extract_level(segment_name) {
                         Some(level) => {
                             let segment_path = get_segment_path(table_path, &segment_name);
-                            let sg = ReaderFlexibleSegment::from(segment_path);
+                            let sg = ReaderFlexibleSegment::new(segment_path);
                             (level, sg)
                         }
                         None => panic!("failed parse segment name ={}.", segment_name),

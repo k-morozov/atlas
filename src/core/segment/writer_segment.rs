@@ -3,11 +3,10 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use super::{flexible_reader::FlexibleReader, segment};
 use crate::core::{
     entry::flexible_entry::FlexibleEntry,
     field::{FieldSize, FlexibleField},
-    segment::offset::Offset,
+    segment::{offset::Offset, segment},
 };
 use crate::errors::Result;
 
@@ -19,8 +18,6 @@ pub struct WriterFlexibleSegment {
     buf: Option<io::BufWriter<fs::File>>,
     entries_offsets: Vec<(Offset, Offset)>,
     segment_offset: u32,
-
-    reader: FlexibleReader,
 }
 
 impl WriterFlexibleSegment {
@@ -52,7 +49,6 @@ impl WriterFlexibleSegment {
             buf: Some(io::BufWriter::new(fd)),
             entries_offsets: Vec::<(Offset, Offset)>::new(),
             segment_offset: 0,
-            reader: FlexibleReader::new(segment_path.as_ref()),
         })
     }
 }
@@ -127,27 +123,5 @@ impl segment::Writer<FlexibleField, FlexibleField> for WriterFlexibleSegment {
         fd.sync_all()?;
 
         Ok(())
-    }
-}
-
-impl segment::Reader<FlexibleField, FlexibleField> for WriterFlexibleSegment {
-    fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        if let Some(r) = self.reader.read(&key)? {
-            return Ok(Some(r));
-        }
-
-        Ok(None)
-    }
-
-    fn read_entry_by_index(&self, index: u64) -> Result<Option<FlexibleEntry>> {
-        if let Some(r) = self.reader.read_by_index(index as u32)? {
-            return Ok(Some(r));
-        }
-
-        Ok(None)
-    }
-
-    fn read_size(&self) -> Result<u64> {
-        self.reader.read_size()
     }
 }

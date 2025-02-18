@@ -1,4 +1,3 @@
-pub mod flexible_reader;
 pub mod id;
 pub mod reader_segment;
 pub mod segment;
