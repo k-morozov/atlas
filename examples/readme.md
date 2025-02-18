@@ -10,3 +10,13 @@ real	57m10,705s
 user	11m5,984s
 sys	    46m3,516s
 ```
+
+commit: e819a30dffe974ac5349d5b41f70b9d4a301efdb
+```
+2025-02-18T01:09:39.713Z INFO  [example] searching index=80000
+2025-02-18T01:10:17.273Z INFO  [example] searching index=90000
+
+real	3m32,744s
+user	1m21,514s
+sys	2m10,626s
+```
