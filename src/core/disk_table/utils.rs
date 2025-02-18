@@ -9,8 +9,8 @@ use super::disk_table::get_disk_table_path;
 use super::local::segment_builder::FlexibleSegmentBuilder;
 
 pub type Levels = u8;
-pub type Segments = Vec<ReaderFlexibleDiskTablePtr>;
-pub type StorageSegments = BTreeMap<Levels, Segments>;
+pub type ReaderDiskTables = Vec<ReaderFlexibleDiskTablePtr>;
+pub type LevelsReaderDiskTables = BTreeMap<Levels, ReaderDiskTables>;
 
 pub const SEGMENTS_MIN_LEVEL: Levels = 1;
 pub const SEGMENTS_MAX_LEVEL: Levels = 3;
@@ -26,7 +26,7 @@ fn extract_level(disk_table: &str) -> Option<u8> {
     level.parse::<u8>().ok()
 }
 
-pub fn get_disk_tables(table_path: &Path) -> Result<StorageSegments, Error> {
+pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables, Error> {
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
 
     let disk_tables = fs::read_dir(segment_dir)?

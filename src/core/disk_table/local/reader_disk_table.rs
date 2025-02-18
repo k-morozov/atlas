@@ -117,27 +117,21 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskT
 
 impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTable {
     fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        for (entry_key, entry_value) in &self.offsets {
-            let _offset = self
-                .fd
-                .borrow_mut()
-                .seek(SeekFrom::Start(entry_key.start as u64))?;
-            let mut buffer = vec![0u8; entry_key.len as usize];
+        let mut left = 0;
+        let mut right = self.count_entries();
 
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, entry_key.len as usize);
+        while left < right {
+            let mid = (left + right) / 2;
 
-            if key.data == buffer {
-                let _offset = self
-                    .fd
-                    .borrow_mut()
-                    .seek(SeekFrom::Start(entry_value.start as u64))?;
-                let mut buffer = vec![0u8; entry_value.len as usize];
+            let r = self.read_entry_by_index(mid)?;
+            assert!(r.is_some());
 
-                let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-                assert_eq!(bytes, entry_value.len as usize);
+            let r = r.unwrap();
 
-                return Ok(Some(FlexibleField::new(buffer)));
+            match r.get_key().cmp(key) {
+                std::cmp::Ordering::Less => left = mid + 1,
+                std::cmp::Ordering::Equal => return Ok(Some(r.get_value().clone())),
+                std::cmp::Ordering::Greater => right = mid,
             }
         }
 
