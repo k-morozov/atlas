@@ -15,11 +15,13 @@ pub type ReaderFlexibleSegmentPtr = segment::ReaderSegmentPtr<FlexibleField, Fle
 pub struct ReaderFlexibleSegment {
     segment_path: PathBuf,
     fd: RefCell<fs::File>,
+    count_entries: u32,
+    offsets: Vec<(Offset, Offset)>,
 }
 
 impl ReaderFlexibleSegment {
     pub(super) fn new<P: AsRef<Path>>(segment_path: P) -> ReaderFlexibleSegmentPtr {
-        let fd = match fs::File::open(segment_path.as_ref()) {
+        let mut fd = match fs::File::open(segment_path.as_ref()) {
             Ok(fd) => fd,
             Err(er) => panic!(
                 "FlexibleReader: error={}, path={}",
@@ -28,10 +30,75 @@ impl ReaderFlexibleSegment {
             ),
         };
 
+        let _offset = fd.seek(SeekFrom::End(-(size_of::<u32>() as i64)));
+
+        let mut buffer = [0u8; size_of::<u32>()];
+        let Ok(bytes) = fd.read(&mut buffer) else {
+            panic!("Failed read from disk")
+        };
+
+        assert_eq!(bytes, size_of::<u32>());
+
+        let count_entries = u32::from_le_bytes(buffer);
+        let Ok(offsets) = ReaderFlexibleSegment::read_offsets(&mut fd, count_entries) else {
+            panic!(
+                "Failed read offsets from {}",
+                segment_path.as_ref().display()
+            )
+        };
+
         Box::new(Self {
             segment_path: segment_path.as_ref().to_path_buf(),
             fd: RefCell::new(fd),
+            count_entries,
+            offsets,
         })
+    }
+
+    fn read_offsets(fd: &mut fs::File, count_entries: u32) -> Result<Vec<(Offset, Offset)>> {
+        let size_entry_offsets = 4 * size_of::<u32>() as i64;
+        let _offset = fd.seek(SeekFrom::End(
+            -(size_of::<u32>() as i64 + count_entries as i64 * size_entry_offsets),
+        ))?;
+        let mut entries_offsets = Vec::<(Offset, Offset)>::new();
+
+        for _entry_offset in 0..count_entries {
+            let mut buffer = [0u8; size_of::<u32>()];
+
+            // read key offset
+            let bytes = fd.read(&mut buffer)?;
+            assert_eq!(bytes, size_of::<u32>());
+            let key_offset = u32::from_le_bytes(buffer);
+
+            // read key len
+            let bytes = fd.read(&mut buffer)?;
+            assert_eq!(bytes, size_of::<u32>());
+            let key_len = u32::from_le_bytes(buffer);
+
+            // read value offset
+            let bytes = fd.read(&mut buffer)?;
+            assert_eq!(bytes, size_of::<u32>());
+            let value_offset = u32::from_le_bytes(buffer);
+
+            // read value len
+            let bytes = fd.read(&mut buffer)?;
+            assert_eq!(bytes, size_of::<u32>());
+            let value_len = u32::from_le_bytes(buffer);
+
+            let key_offset = Offset {
+                start: key_offset,
+                len: key_len,
+            };
+
+            let value_offset = Offset {
+                start: value_offset,
+                len: value_len,
+            };
+
+            entries_offsets.push((key_offset, value_offset));
+        }
+
+        Ok(entries_offsets)
     }
 }
 
@@ -50,63 +117,7 @@ impl segment::Segment<FlexibleField, FlexibleField> for ReaderFlexibleSegment {
 
 impl segment::Reader<FlexibleField, FlexibleField> for ReaderFlexibleSegment {
     fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        let offset = self
-            .fd
-            .borrow_mut()
-            .seek(SeekFrom::End(-(size_of::<u32>() as i64)))?;
-
-        let mut buffer = [0u8; size_of::<u32>()];
-        let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-
-        assert_eq!(bytes, size_of::<u32>());
-
-        let count_entry_offsets = u32::from_le_bytes(buffer);
-
-        let size_entry_offsets = 4 * size_of::<u32>() as u64;
-
-        let _offset = self.fd.borrow_mut().seek(SeekFrom::Start(
-            offset - count_entry_offsets as u64 * size_entry_offsets,
-        ))?;
-
-        let mut entries_offsets = Vec::<(Offset, Offset)>::new();
-
-        for _entry_offset in 0..count_entry_offsets {
-            let mut buffer = [0u8; size_of::<u32>()];
-
-            // read key offset
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let key_offset = u32::from_le_bytes(buffer);
-
-            // read key len
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let key_len = u32::from_le_bytes(buffer);
-
-            // read value offset
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let value_offset = u32::from_le_bytes(buffer);
-
-            // read value len
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let value_len = u32::from_le_bytes(buffer);
-
-            let key_offset = Offset {
-                start: key_offset,
-                len: key_len,
-            };
-
-            let value_offset = Offset {
-                start: value_offset,
-                len: value_len,
-            };
-
-            entries_offsets.push((key_offset, value_offset));
-        }
-
-        for (entry_key, entry_value) in entries_offsets {
+        for (entry_key, entry_value) in &self.offsets {
             let _offset = self
                 .fd
                 .borrow_mut()
@@ -133,119 +144,36 @@ impl segment::Reader<FlexibleField, FlexibleField> for ReaderFlexibleSegment {
         Ok(None)
     }
 
-    fn read_entry_by_index(&self, index: u64) -> Result<Option<FlexibleEntry>> {
-        let offset = self
-            .fd
-            .borrow_mut()
-            .seek(SeekFrom::End(-(size_of::<u32>() as i64)))?;
+    fn read_entry_by_index(&self, index: u32) -> Result<Option<FlexibleEntry>> {
+        let Some((entry_key, entry_value)) = self.offsets.get(index as usize) else {
+            return Ok(None);
+        };
 
-        let mut buffer = [0u8; size_of::<u32>()];
-        let bytes: usize = self.fd.borrow_mut().read(&mut buffer)?;
-
-        assert_eq!(bytes, size_of::<u32>());
-
-        let count_entry_offsets = u32::from_le_bytes(buffer) as u64;
-
-        let size_entry_offsets = 4 * size_of::<u32>() as u64;
-        let size_bytes_offsets = count_entry_offsets * size_entry_offsets;
-
-        let expected = self.read_size()?;
-        assert!(count_entry_offsets == expected);
-
-        assert!(
-            offset >= size_bytes_offsets,
-            "offset={:?}, count_entry_offsets={}, size_bytes_offsets={}",
-            offset,
-            count_entry_offsets,
-            size_bytes_offsets
-        );
-
-        let _offset = self.fd.borrow_mut().seek(SeekFrom::Start(
-            offset - count_entry_offsets * size_entry_offsets,
-        ))?;
-
-        let mut entries_offsets = Vec::<(Offset, Offset)>::new();
-
-        for entry_offset in 0..count_entry_offsets {
-            let mut buffer = [0u8; size_of::<u32>()];
-
-            // read key offset
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let key_offset = u32::from_le_bytes(buffer);
-
-            // read key len
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let key_len = u32::from_le_bytes(buffer);
-
-            // read value offset
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let value_offset = u32::from_le_bytes(buffer);
-
-            // read value len
-            let bytes = self.fd.borrow_mut().read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let value_len = u32::from_le_bytes(buffer);
-
-            let key_offset = Offset {
-                start: key_offset,
-                len: key_len,
-            };
-
-            let value_offset = Offset {
-                start: value_offset,
-                len: value_len,
-            };
-
-            if entry_offset == index {
-                entries_offsets.push((key_offset, value_offset));
-                break;
-            }
-        }
-
-        for (entry_key, entry_value) in entries_offsets {
-            let _offset = self
-                .fd
-                .borrow_mut()
-                .seek(SeekFrom::Start(entry_key.start as u64))?;
-            let mut key_buffer = vec![0u8; entry_key.len as usize];
-
-            let bytes = self.fd.borrow_mut().read(&mut key_buffer)?;
-            assert_eq!(bytes, entry_key.len as usize);
-
-            let _offset = self
-                .fd
-                .borrow_mut()
-                .seek(SeekFrom::Start(entry_value.start as u64))?;
-            let mut value_buffer = vec![0u8; entry_value.len as usize];
-
-            let bytes = self.fd.borrow_mut().read(&mut value_buffer)?;
-            assert_eq!(bytes, entry_value.len as usize);
-
-            return Ok(Some(FlexibleEntry::new(
-                FlexibleField::new(key_buffer),
-                FlexibleField::new(value_buffer),
-            )));
-        }
-
-        Ok(None)
-    }
-
-    fn read_size(&self) -> Result<u64> {
         let _offset = self
             .fd
             .borrow_mut()
-            .seek(SeekFrom::End(-(size_of::<u32>() as i64)))?;
+            .seek(SeekFrom::Start(entry_key.start as u64))?;
+        let mut key_buffer = vec![0u8; entry_key.len as usize];
 
-        let mut buffer = [0u8; size_of::<u32>()];
-        let bytes = self.fd.borrow_mut().read(&mut buffer)?;
+        let bytes = self.fd.borrow_mut().read(&mut key_buffer)?;
+        assert_eq!(bytes, entry_key.len as usize);
 
-        assert_eq!(bytes, size_of::<u32>());
+        let _offset = self
+            .fd
+            .borrow_mut()
+            .seek(SeekFrom::Start(entry_value.start as u64))?;
+        let mut value_buffer = vec![0u8; entry_value.len as usize];
 
-        let count_offsets = u32::from_le_bytes(buffer);
+        let bytes = self.fd.borrow_mut().read(&mut value_buffer)?;
+        assert_eq!(bytes, entry_value.len as usize);
 
-        Ok(count_offsets as u64)
+        return Ok(Some(FlexibleEntry::new(
+            FlexibleField::new(key_buffer),
+            FlexibleField::new(value_buffer),
+        )));
+    }
+
+    fn count_entries(&self) -> u32 {
+        self.count_entries
     }
 }

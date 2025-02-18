@@ -14,8 +14,8 @@ pub trait Writer<K, V> {
 
 pub trait Reader<K, V> {
     fn read(&self, key: &K) -> Result<Option<V>>;
-    fn read_entry_by_index(&self, index: u64) -> Result<Option<Entry<K, V>>>;
-    fn read_size(&self) -> Result<u64>;
+    fn read_entry_by_index(&self, index: u32) -> Result<Option<Entry<K, V>>>;
+    fn count_entries(&self) -> u32;
 }
 
 pub trait Segment<K, V> {
@@ -43,8 +43,8 @@ pub fn get_segment_name_by_level(segment_id: u64, level: Levels) -> String {
 
 pub struct ReaderSegmentIterator<'a, K, V> {
     segment: &'a dyn ReaderSegment<K, V>,
-    index: u64,
-    max_index: u64,
+    index: u32,
+    max_index: u32,
 }
 
 impl<'a, K, V> Iterator for ReaderSegmentIterator<'a, K, V> {
@@ -71,10 +71,7 @@ impl<'a, K, V> IntoIterator for &'a dyn ReaderSegment<K, V> {
     type IntoIter = ReaderSegmentIterator<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let max_index = match self.read_size() {
-            Ok(idx) => idx,
-            Err(er) => panic!("failed read max index: {}", er),
-        };
+        let max_index = self.count_entries();
 
         ReaderSegmentIterator {
             segment: self,
