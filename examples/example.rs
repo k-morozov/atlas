@@ -41,7 +41,7 @@ fn main() {
 
         expected.push(entry);
 
-        if index % 1000 == 0 {
+        if index % 10000 == 0 {
             info!("{} entries were inserted", index);
         }
     }
@@ -49,7 +49,10 @@ fn main() {
     info!("Data was inserted.");
 
     for index in (0..TOTAL_VALUE).step_by(10) {
-        info!("Start searching index={}", index);
+        if index % 10000 == 0 {
+            info!("searching index={}", index);
+        }
+
         let expected_entry = &expected[index];
 
         let result = table.get(expected_entry.get_key()).unwrap();

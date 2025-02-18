@@ -3,20 +3,16 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use super::{
-    flexible_reader::FlexibleReader,
-    segment::{Segment, SegmentPtr, SegmentReader, SegmentWriter},
-};
 use crate::core::{
     entry::flexible_entry::FlexibleEntry,
     field::{FieldSize, FlexibleField},
-    segment::offset::Offset,
+    segment::{offset::Offset, segment},
 };
 use crate::errors::Result;
 
-pub type FlexibleSegmentPtr = SegmentPtr<FlexibleField, FlexibleField>;
+pub type WriterFlexibleSegmentPtr = segment::WriterSegmentPtr<FlexibleField, FlexibleField>;
 
-pub struct FlexibleSegment {
+pub struct WriterFlexibleSegment {
     segment_path: PathBuf,
 
     buf: Option<io::BufWriter<fs::File>>,
@@ -24,8 +20,8 @@ pub struct FlexibleSegment {
     segment_offset: u32,
 }
 
-impl FlexibleSegment {
-    pub(super) fn new<P: AsRef<Path>>(segment_path: P) -> FlexibleSegmentPtr {
+impl WriterFlexibleSegment {
+    pub(super) fn new<P: AsRef<Path>>(segment_path: P) -> WriterFlexibleSegmentPtr {
         let mut options = fs::OpenOptions::new();
         options.write(true).create(true);
 
@@ -50,33 +46,16 @@ impl FlexibleSegment {
 
         Box::new(Self {
             segment_path: segment_path.as_ref().to_path_buf(),
-
             buf: Some(io::BufWriter::new(fd)),
-            entries_offsets: Vec::<(Offset, Offset)>::new(),
-            segment_offset: 0,
-        })
-    }
-
-    pub(super) fn from<P: AsRef<Path>>(segment_path: P) -> FlexibleSegmentPtr {
-        if let Err(er) = fs::File::open(segment_path.as_ref()) {
-            panic!(
-                "FlexibleSegment: Failed to create part. path={}, error= {}",
-                segment_path.as_ref().display(),
-                er
-            );
-        };
-
-        Box::new(Self {
-            segment_path: segment_path.as_ref().to_path_buf(),
-
-            buf: None,
             entries_offsets: Vec::<(Offset, Offset)>::new(),
             segment_offset: 0,
         })
     }
 }
 
-impl Segment<FlexibleField, FlexibleField> for FlexibleSegment {
+impl segment::WriterSegment<FlexibleField, FlexibleField> for WriterFlexibleSegment {}
+
+impl segment::Segment<FlexibleField, FlexibleField> for WriterFlexibleSegment {
     fn get_path(&self) -> &Path {
         self.segment_path.as_path()
     }
@@ -87,7 +66,7 @@ impl Segment<FlexibleField, FlexibleField> for FlexibleSegment {
     }
 }
 
-impl SegmentWriter<FlexibleField, FlexibleField> for FlexibleSegment {
+impl segment::Writer<FlexibleField, FlexibleField> for WriterFlexibleSegment {
     fn write(&mut self, entry: FlexibleEntry) -> Result<()> {
         let key_offset = self.segment_offset;
         self.segment_offset += entry.get_key().size() as u32;
@@ -144,30 +123,5 @@ impl SegmentWriter<FlexibleField, FlexibleField> for FlexibleSegment {
         fd.sync_all()?;
 
         Ok(())
-    }
-}
-
-impl SegmentReader<FlexibleField, FlexibleField> for FlexibleSegment {
-    fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        let reader = FlexibleReader::new(self.segment_path.as_path());
-        if let Some(r) = reader.read(&key)? {
-            return Ok(Some(r));
-        }
-
-        Ok(None)
-    }
-
-    fn read_entry_by_index(&self, index: u64) -> Result<Option<FlexibleEntry>> {
-        let mut reader = FlexibleReader::new(self.segment_path.as_path());
-        if let Some(r) = reader.read_by_index(index as u32)? {
-            return Ok(Some(r));
-        }
-
-        Ok(None)
-    }
-
-    fn read_size(&self) -> Result<u64> {
-        let mut reader = FlexibleReader::new(self.segment_path.as_path());
-        reader.read_size()
     }
 }
