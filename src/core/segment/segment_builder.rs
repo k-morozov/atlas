@@ -1,21 +1,22 @@
 use std::path::Path;
 
-use super::flexible_segment::{FlexibleSegment, FlexibleSegmentPtr};
+use super::reader_segment::{ReaderFlexibleSegment, ReaderFlexibleSegmentPtr};
+use super::writer_segment::{WriterFlexibleSegment, WriterFlexibleSegmentPtr};
 use crate::core::entry::flexible_entry::FlexibleEntry;
 
 pub struct FlexibleSegmentBuilder {
-    building_segment: Option<FlexibleSegmentPtr>,
+    segment: Option<WriterFlexibleSegmentPtr>,
 }
 
 impl FlexibleSegmentBuilder {
     pub fn new<P: AsRef<Path>>(segment_path: P) -> Self {
         FlexibleSegmentBuilder {
-            building_segment: Some(FlexibleSegment::new(segment_path)),
+            segment: Some(WriterFlexibleSegment::new(segment_path)),
         }
     }
 
     pub fn append_entry(&mut self, entry: &FlexibleEntry) -> &mut Self {
-        match &mut self.building_segment {
+        match &mut self.segment {
             Some(ptr) => {
                 if let Err(_er) = ptr.write(entry.clone()) {
                     panic!("Failed write in builder")
@@ -26,15 +27,16 @@ impl FlexibleSegmentBuilder {
         }
     }
 
-    pub fn build(&mut self) -> FlexibleSegmentPtr {
-        let building_segment = self.building_segment.take();
+    pub fn build(&mut self) -> ReaderFlexibleSegmentPtr {
+        let building_segment = self.segment.take();
 
         match building_segment {
-            Some(mut ptr) => {
-                if let Err(er) = ptr.flush() {
+            Some(mut writer) => {
+                if let Err(er) = writer.flush() {
                     panic!("Failed flush in builder: {}", er)
                 }
-                ptr
+
+                ReaderFlexibleSegment::new(writer.get_path())
             }
             None => panic!("Failed build from None"),
         }

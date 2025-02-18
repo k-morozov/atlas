@@ -4,23 +4,27 @@ use super::utils::Levels;
 use crate::core::entry::entry::Entry;
 use crate::errors::Result;
 
-pub type SegmentPtr<K, V> = Box<dyn Segment<K, V>>;
+pub type WriterSegmentPtr<K, V> = Box<dyn WriterSegment<K, V>>;
+pub type ReaderSegmentPtr<K, V> = Box<dyn ReaderSegment<K, V>>;
 
-pub trait SegmentWriter<K, V> {
+pub trait Writer<K, V> {
     fn write(&mut self, entry: Entry<K, V>) -> Result<()>;
     fn flush(&mut self) -> Result<()>;
 }
 
-pub trait SegmentReader<K, V> {
+pub trait Reader<K, V> {
     fn read(&self, key: &K) -> Result<Option<V>>;
     fn read_entry_by_index(&self, index: u64) -> Result<Option<Entry<K, V>>>;
     fn read_size(&self) -> Result<u64>;
 }
 
-pub trait Segment<K, V>: SegmentWriter<K, V> + SegmentReader<K, V> {
+pub trait Segment<K, V> {
     fn get_path(&self) -> &Path;
     fn remove(&self) -> Result<()>;
 }
+
+pub trait WriterSegment<K, V>: Segment<K, V> + Writer<K, V> {}
+pub trait ReaderSegment<K, V>: Segment<K, V> + Reader<K, V> {}
 
 pub fn get_segment_path(table_path: &Path, segment_name: &str) -> PathBuf {
     let segment_path = format!("{}/segment/{}", table_path.to_str().unwrap(), segment_name);
@@ -37,13 +41,13 @@ pub fn get_segment_name_by_level(segment_id: u64, level: Levels) -> String {
     segment_name
 }
 
-pub struct SegmentIterator<'a, K, V> {
-    segment: &'a dyn Segment<K, V>,
+pub struct ReaderSegmentIterator<'a, K, V> {
+    segment: &'a dyn ReaderSegment<K, V>,
     index: u64,
     max_index: u64,
 }
 
-impl<'a, K, V> Iterator for SegmentIterator<'a, K, V> {
+impl<'a, K, V> Iterator for ReaderSegmentIterator<'a, K, V> {
     type Item = Entry<K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -62,9 +66,9 @@ impl<'a, K, V> Iterator for SegmentIterator<'a, K, V> {
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a dyn Segment<K, V> {
+impl<'a, K, V> IntoIterator for &'a dyn ReaderSegment<K, V> {
     type Item = Entry<K, V>;
-    type IntoIter = SegmentIterator<'a, K, V>;
+    type IntoIter = ReaderSegmentIterator<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         let max_index = match self.read_size() {
@@ -72,7 +76,7 @@ impl<'a, K, V> IntoIterator for &'a dyn Segment<K, V> {
             Err(er) => panic!("failed read max index: {}", er),
         };
 
-        SegmentIterator {
+        ReaderSegmentIterator {
             segment: self,
             index: 0,
             max_index,
