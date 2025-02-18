@@ -2,26 +2,27 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+use kvs::core::disk_table::disk_table::get_disk_table_name;
+use kvs::core::disk_table::id::DiskTableID;
+use kvs::core::disk_table::local::segment_builder::FlexibleSegmentBuilder;
 use kvs::core::entry::flexible_entry::FlexibleEntry;
 use kvs::core::field::FlexibleField;
-use kvs::core::segment::segment::get_segment_name;
-use kvs::core::segment::segment_builder::FlexibleSegmentBuilder;
 
 #[test]
 fn simple_flexible_segment() -> io::Result<()> {
     // let table_path = Path::new("/tmp/kvs/test/simple_flexible_segment");
-    let segment_name = get_segment_name(12);
-    let segment_path = format!(
+    let segment_name = get_disk_table_name(DiskTableID::from(12));
+    let disk_table_path = format!(
         "/tmp/kvs/test/simple_flexible_segment/segment/{}",
         segment_name
     );
-    let segment_path: &Path = Path::new(&segment_path);
+    let disk_table_path: &Path = Path::new(&disk_table_path);
 
-    if let Some(parent) = segment_path.parent() {
+    if let Some(parent) = disk_table_path.parent() {
         fs::create_dir_all(parent).unwrap();
     }
 
-    if let Err(er) = fs::remove_file(segment_path) {
+    if let Err(er) = fs::remove_file(disk_table_path) {
         assert_eq!(io::ErrorKind::NotFound, er.kind());
     }
 
@@ -39,7 +40,7 @@ fn simple_flexible_segment() -> io::Result<()> {
     let segment = entries
         .into_iter()
         .fold(
-            FlexibleSegmentBuilder::new(segment_path),
+            FlexibleSegmentBuilder::new(disk_table_path),
             |mut builder, entry| {
                 builder.append_entry(&entry);
                 builder

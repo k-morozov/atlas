@@ -4,21 +4,21 @@ pub const DETAULT_MEM_TABLE_SIZE: usize = 4;
 pub const DEFAULT_SEGMENTS_LIMIT: usize = 4;
 
 #[derive(Clone)]
-pub struct TableConfig {
+pub struct StorageConfig {
     pub mem_table_size: usize,
     pub segments_limit: usize,
 }
 
-impl TableConfig {
+impl StorageConfig {
     pub fn new_config(mem_table_size: usize, segments_limit: usize) -> Self {
-        TableConfig {
+        StorageConfig {
             mem_table_size,
             segments_limit,
         }
     }
 
     pub fn default_config() -> Self {
-        TableConfig {
+        StorageConfig {
             mem_table_size: DETAULT_MEM_TABLE_SIZE,
             segments_limit: DEFAULT_SEGMENTS_LIMIT,
         }

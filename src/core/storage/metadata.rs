@@ -3,18 +3,18 @@ use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::core::segment::id::SegmentID;
+use crate::core::disk_table::id::DiskTableID;
 
-pub struct TableMetadata {
-    pub segment_id: SegmentID,
+pub struct StorageMetadata {
+    pub segment_id: DiskTableID,
     metadata_path: PathBuf,
 }
 
-impl TableMetadata {
+impl StorageMetadata {
     pub fn new(table_path: &Path) -> Self {
-        TableMetadata {
-            segment_id: SegmentID::new(),
-            metadata_path: TableMetadata::make_path(table_path),
+        StorageMetadata {
+            segment_id: DiskTableID::new(),
+            metadata_path: StorageMetadata::make_path(table_path),
         }
     }
 
@@ -30,8 +30,8 @@ impl TableMetadata {
     }
 
     pub fn from_file<P: AsRef<Path> + Copy>(metadata_path: P) -> Self {
-        let mut metadata = TableMetadata {
-            segment_id: SegmentID::new(),
+        let mut metadata = StorageMetadata {
+            segment_id: DiskTableID::new(),
             metadata_path: metadata_path.as_ref().to_path_buf(),
         };
 
@@ -43,7 +43,7 @@ impl TableMetadata {
                             let mut data = String::new();
                             let _r = fd.read_to_string(&mut data);
                             match data.parse::<u64>() {
-                                Ok(id) => metadata.segment_id = SegmentID::from(id),
+                                Ok(id) => metadata.segment_id = DiskTableID::from(id),
                                 Err(_) => {
                                     panic!(
                                         "broken metadata: {}, path={}",

@@ -4,17 +4,17 @@ use crate::core::entry::flexible_entry::FlexibleEntry;
 
 use super::field::FlexibleField;
 
-pub struct MemTable {
+pub struct MemoryTable {
     entries: Vec<FlexibleEntry>,
     current_size: usize,
     max_table_size: usize,
 }
 
-impl MemTable {
+impl MemoryTable {
     pub fn new(max_table_size: usize) -> Self {
         let entries = Vec::with_capacity(max_table_size);
 
-        MemTable {
+        MemoryTable {
             entries: entries,
             current_size: 0,
             max_table_size,
@@ -56,12 +56,12 @@ impl MemTable {
     }
 }
 
-pub struct MemTableIterator<'a> {
-    table: &'a MemTable,
+pub struct MemoryTableIterator<'a> {
+    table: &'a MemoryTable,
     pos: usize,
 }
 
-impl<'a> Iterator for MemTableIterator<'a> {
+impl<'a> Iterator for MemoryTableIterator<'a> {
     type Item = &'a FlexibleEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -75,12 +75,12 @@ impl<'a> Iterator for MemTableIterator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a MemTable {
+impl<'a> IntoIterator for &'a MemoryTable {
     type Item = &'a FlexibleEntry;
-    type IntoIter = MemTableIterator<'a>;
+    type IntoIter = MemoryTableIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        MemTableIterator {
+        MemoryTableIterator {
             table: self,
             pos: 0,
         }
@@ -96,14 +96,14 @@ mod tests {
 
     #[test]
     fn check_sizes() {
-        let mem_table = mem_table::MemTable::new(3);
+        let mem_table = mem_table::MemoryTable::new(3);
         assert_eq!(mem_table.current_size(), 0);
         assert_eq!(mem_table.max_table_size(), 3);
     }
 
     #[test]
     fn check_append() {
-        let mut mem_table = mem_table::MemTable::new(3);
+        let mut mem_table = mem_table::MemoryTable::new(3);
 
         let entry1 = FlexibleEntry::new(
             FlexibleField::new(vec![1, 2, 3]),

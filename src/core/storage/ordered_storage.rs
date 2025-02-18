@@ -1,67 +1,65 @@
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 
-use super::table::Table;
+use super::storage::Storage;
+use crate::core::disk_table::{
+    disk_table::{get_disk_table_name, get_disk_table_path},
+    local::segment_builder::FlexibleSegmentBuilder,
+    utils::{get_disk_tables, StorageSegments, SEGMENTS_MIN_LEVEL},
+};
 use crate::core::entry::flexible_entry::FlexibleEntry;
 use crate::core::field::FlexibleField;
-use crate::core::mem_table::MemTable;
+use crate::core::mem_table::MemoryTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
-use crate::core::segment::{
-    segment::{get_segment_name, get_segment_path},
-    segment_builder::FlexibleSegmentBuilder,
-    utils::{get_table_segments, TableSegments, SEGMENTS_MIN_LEVEL},
-};
-use crate::core::table::{
-    config::{TableConfig, DEFAULT_TEST_TABLES_PATH},
-    metadata::TableMetadata,
+use crate::core::storage::{
+    config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
+    metadata::StorageMetadata,
 };
 use crate::errors::Error;
 
-fn create_dirs(table_path: &Path) -> Result<(), Error> {
-    create_dir_all(Path::new(table_path))?;
-    let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
+fn create_dirs(storage_path: &Path) -> Result<(), Error> {
+    create_dir_all(Path::new(storage_path))?;
+    let segment_dir = format!("{}/segment", storage_path.to_str().unwrap());
     create_dir_all(Path::new(&segment_dir))?;
 
     Ok(())
 }
 
-pub struct SimpleTable {
-    table_path: PathBuf,
+pub struct OrderedStorage {
+    storage_path: PathBuf,
 
-    mem_table: MemTable,
+    mem_table: MemoryTable,
 
-    metadata: TableMetadata,
+    metadata: StorageMetadata,
 
     // @todo possibly add to metadata
-    segments: TableSegments,
+    disk_tables: StorageSegments,
 
-    config: TableConfig,
+    config: StorageConfig,
 }
 
-impl SimpleTable {
-    pub fn new<P: AsRef<Path>>(table_path: P, config: TableConfig) -> Self {
-        if let Err(er) = create_dirs(table_path.as_ref()) {
+impl OrderedStorage {
+    pub fn new<P: AsRef<Path>>(storage_path: P, config: StorageConfig) -> Self {
+        if let Err(er) = create_dirs(storage_path.as_ref()) {
             panic!(
-                "Faield create table dirs: table_path={}, error={}",
-                table_path.as_ref().display(),
+                "Faield create storage dirs: table_path={}, error={}",
+                storage_path.as_ref().display(),
                 er
             )
         }
 
-        let segments = get_table_segments(table_path.as_ref());
+        let Ok(disk_tables) = get_disk_tables(storage_path.as_ref()) else {
+            panic!("Faield read disk tables")
+        };
 
-        if let Err(_) = segments {
-            panic!("Faield read segments")
-        }
-
-        let segments = segments.unwrap();
-        let metadata = TableMetadata::from_file(TableMetadata::make_path(&table_path).as_path());
+        let metadata =
+            StorageMetadata::from_file(StorageMetadata::make_path(&storage_path).as_path());
 
         Self {
-            mem_table: MemTable::new(config.mem_table_size),
-            table_path: table_path.as_ref().to_path_buf(),
+            mem_table: MemoryTable::new(config.mem_table_size),
+            storage_path: storage_path.as_ref().to_path_buf(),
             metadata,
-            segments,
+            disk_tables,
             config,
         }
     }
@@ -74,14 +72,14 @@ impl SimpleTable {
 
     fn save_mem_table(&mut self) {
         let segment_id = self.metadata.segment_id.get_and_next();
-        let segment_name = get_segment_name(segment_id);
-        let segment_path = get_segment_path(self.table_path.as_path(), &segment_name);
+        let segment_name = get_disk_table_name(segment_id);
+        let disk_table_path = get_disk_table_path(self.storage_path.as_path(), &segment_name);
 
         let segment_from_mem_table = self
             .mem_table
             .into_iter()
             .fold(
-                FlexibleSegmentBuilder::new(segment_path.as_path()),
+                FlexibleSegmentBuilder::new(disk_table_path.as_path()),
                 |mut builder, entry| {
                     builder.append_entry(entry);
                     builder
@@ -89,12 +87,12 @@ impl SimpleTable {
             )
             .build();
 
-        self.segments
+        self.disk_tables
             .entry(SEGMENTS_MIN_LEVEL)
             .or_insert_with(Vec::new)
             .push(segment_from_mem_table);
 
-        self.mem_table = MemTable::new(self.config.mem_table_size);
+        self.mem_table = MemoryTable::new(self.config.mem_table_size);
 
         self.metadata
             .sync_disk(Path::new(self.metadata.get_metadata_path()));
@@ -102,7 +100,7 @@ impl SimpleTable {
     }
 }
 
-impl Table for SimpleTable {
+impl Storage for OrderedStorage {
     fn put(&mut self, entry: FlexibleEntry) -> Result<(), Error> {
         self.mem_table.append(entry.clone());
 
@@ -110,10 +108,10 @@ impl Table for SimpleTable {
             self.save_mem_table();
 
             // @todo
-            if is_ready_to_merge(&self.segments) {
+            if is_ready_to_merge(&self.disk_tables) {
                 merge_segments(
-                    &mut self.segments,
-                    self.table_path.as_path(),
+                    &mut self.disk_tables,
+                    self.storage_path.as_path(),
                     &mut self.metadata.segment_id,
                 );
             }
@@ -127,7 +125,7 @@ impl Table for SimpleTable {
             return Ok(Some(value));
         }
 
-        for (_level, segments) in &self.segments {
+        for (_level, segments) in &self.disk_tables {
             for segment in segments {
                 match segment.read(key) {
                     Ok(v) => match v {
@@ -152,7 +150,7 @@ mod tests {
 
     use super::*;
     use crate::core::field::*;
-    use crate::core::table::config::DEFAULT_TEST_TABLES_PATH;
+    use crate::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 
     #[test]
     fn test_segment() -> io::Result<()> {
@@ -160,8 +158,8 @@ mod tests {
         let table_path = tmp_dir.path().join("test_segment");
 
         {
-            let config = TableConfig::default_config();
-            let mut table = SimpleTable::new(table_path, config.clone());
+            let config = StorageConfig::default_config();
+            let mut table = OrderedStorage::new(table_path, config.clone());
 
             for index in 0..=config.mem_table_size as u8 {
                 let entry = FlexibleEntry::new(
@@ -188,8 +186,8 @@ mod tests {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
         let table_path = tmp_dir.path().join("test_some_segments");
 
-        let config = TableConfig::default_config();
-        let mut table = SimpleTable::new(table_path, config.clone());
+        let config = StorageConfig::default_config();
+        let mut table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..3 * config.mem_table_size as u8 {
             let entry = FlexibleEntry::new(
@@ -215,9 +213,9 @@ mod tests {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
         let table_path = tmp_dir.path().join("test_some_segments_with_restart");
 
-        let config = TableConfig::default_config();
+        let config = StorageConfig::default_config();
         {
-            let mut table = SimpleTable::new(&table_path, config.clone());
+            let mut table = OrderedStorage::new(&table_path, config.clone());
 
             for index in 0..10 * config.mem_table_size as u8 {
                 let entry = FlexibleEntry::new(
@@ -233,7 +231,7 @@ mod tests {
             }
         }
 
-        let table = SimpleTable::new(&table_path, config.clone());
+        let table = OrderedStorage::new(&table_path, config.clone());
         for index in 0..10 * config.mem_table_size as u8 {
             let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(result.unwrap(), FlexibleField::new(vec![index * 2, 30, 40]));
@@ -247,9 +245,9 @@ mod tests {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
         let table_path = tmp_dir.path().join("test_merge_sements");
 
-        let config = TableConfig::default_config();
+        let config = StorageConfig::default_config();
 
-        let mut table = SimpleTable::new(table_path, config.clone());
+        let mut table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..5 * config.mem_table_size as u8 {
             let entry = FlexibleEntry::new(
@@ -272,9 +270,9 @@ mod tests {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
         let table_path = tmp_dir.path().join("test_merge_sements_max_level");
 
-        let config = TableConfig::default_config();
+        let config = StorageConfig::default_config();
 
-        let mut table = SimpleTable::new(table_path, config.clone());
+        let mut table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..64 * (config.mem_table_size - 1) as u8 {
             let entry = FlexibleEntry::new(

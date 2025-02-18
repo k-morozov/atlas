@@ -4,29 +4,29 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use crate::core::{
+    disk_table::{disk_table, local::offset::Offset},
     entry::flexible_entry::FlexibleEntry,
     field::FlexibleField,
-    segment::{offset::Offset, segment},
 };
 use crate::errors::Result;
 
-pub type ReaderFlexibleSegmentPtr = segment::ReaderSegmentPtr<FlexibleField, FlexibleField>;
+pub type ReaderFlexibleDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, FlexibleField>;
 
-pub struct ReaderFlexibleSegment {
-    segment_path: PathBuf,
+pub struct ReaderFlexibleDiskTable {
+    disk_table_path: PathBuf,
     fd: RefCell<fs::File>,
     count_entries: u32,
     offsets: Vec<(Offset, Offset)>,
 }
 
-impl ReaderFlexibleSegment {
-    pub(super) fn new<P: AsRef<Path>>(segment_path: P) -> ReaderFlexibleSegmentPtr {
-        let mut fd = match fs::File::open(segment_path.as_ref()) {
+impl ReaderFlexibleDiskTable {
+    pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> ReaderFlexibleDiskTablePtr {
+        let mut fd = match fs::File::open(disk_table_path.as_ref()) {
             Ok(fd) => fd,
             Err(er) => panic!(
                 "FlexibleReader: error={}, path={}",
                 er,
-                segment_path.as_ref().display()
+                disk_table_path.as_ref().display()
             ),
         };
 
@@ -40,15 +40,15 @@ impl ReaderFlexibleSegment {
         assert_eq!(bytes, size_of::<u32>());
 
         let count_entries = u32::from_le_bytes(buffer);
-        let Ok(offsets) = ReaderFlexibleSegment::read_offsets(&mut fd, count_entries) else {
+        let Ok(offsets) = ReaderFlexibleDiskTable::read_offsets(&mut fd, count_entries) else {
             panic!(
                 "Failed read offsets from {}",
-                segment_path.as_ref().display()
+                disk_table_path.as_ref().display()
             )
         };
 
         Box::new(Self {
-            segment_path: segment_path.as_ref().to_path_buf(),
+            disk_table_path: disk_table_path.as_ref().to_path_buf(),
             fd: RefCell::new(fd),
             count_entries,
             offsets,
@@ -102,20 +102,20 @@ impl ReaderFlexibleSegment {
     }
 }
 
-impl segment::ReaderSegment<FlexibleField, FlexibleField> for ReaderFlexibleSegment {}
+impl disk_table::ReaderDiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskTable {}
 
-impl segment::Segment<FlexibleField, FlexibleField> for ReaderFlexibleSegment {
+impl disk_table::DiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskTable {
     fn get_path(&self) -> &Path {
-        self.segment_path.as_path()
+        self.disk_table_path.as_path()
     }
 
     fn remove(&self) -> Result<()> {
-        fs::remove_file(self.segment_path.as_path())?;
+        fs::remove_file(self.disk_table_path.as_path())?;
         Ok(())
     }
 }
 
-impl segment::Reader<FlexibleField, FlexibleField> for ReaderFlexibleSegment {
+impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTable {
     fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
         for (entry_key, entry_value) in &self.offsets {
             let _offset = self
