@@ -5,12 +5,12 @@ use super::storage::Storage;
 use crate::core::disk_table::{
     disk_table::{get_disk_table_name, get_disk_table_path},
     local::segment_builder::FlexibleSegmentBuilder,
-    utils::{get_disk_tables, StorageSegments, SEGMENTS_MIN_LEVEL},
+    utils::{get_disk_tables, LevelsReaderDiskTables, SEGMENTS_MIN_LEVEL},
 };
 use crate::core::entry::flexible_entry::FlexibleEntry;
 use crate::core::field::FlexibleField;
 use crate::core::mem_table::MemoryTable;
-use crate::core::merge::merge::{is_ready_to_merge, merge_segments};
+use crate::core::merge::merge::{is_ready_to_merge, merge_disk_tables};
 use crate::core::storage::{
     config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
     metadata::StorageMetadata,
@@ -27,14 +27,9 @@ fn create_dirs(storage_path: &Path) -> Result<(), Error> {
 
 pub struct OrderedStorage {
     storage_path: PathBuf,
-
     mem_table: MemoryTable,
-
     metadata: StorageMetadata,
-
-    // @todo possibly add to metadata
-    disk_tables: StorageSegments,
-
+    disk_tables: LevelsReaderDiskTables,
     config: StorageConfig,
 }
 
@@ -109,7 +104,7 @@ impl Storage for OrderedStorage {
 
             // @todo
             if is_ready_to_merge(&self.disk_tables) {
-                merge_segments(
+                merge_disk_tables(
                     &mut self.disk_tables,
                     self.storage_path.as_path(),
                     &mut self.metadata.segment_id,
