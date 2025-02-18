@@ -1,21 +1,21 @@
-use std::iter::IntoIterator;
+use std::{collections::BTreeSet, iter::IntoIterator};
 
 use crate::core::entry::flexible_entry::FlexibleEntry;
 
 use super::field::FlexibleField;
 
 pub struct MemoryTable {
-    entries: Vec<FlexibleEntry>,
+    entries: BTreeSet<FlexibleEntry>,
     current_size: usize,
     max_table_size: usize,
 }
 
 impl MemoryTable {
     pub fn new(max_table_size: usize) -> Self {
-        let entries = Vec::with_capacity(max_table_size);
+        let entries = BTreeSet::new();
 
         MemoryTable {
-            entries: entries,
+            entries,
             current_size: 0,
             max_table_size,
         }
@@ -30,8 +30,7 @@ impl MemoryTable {
     }
 
     pub fn append(&mut self, row: FlexibleEntry) {
-        self.entries.push(row);
-        // self.entries.sort();
+        self.entries.insert(row);
         self.current_size += 1;
     }
 
@@ -46,10 +45,6 @@ impl MemoryTable {
         self.entries.iter()
     }
 
-    fn get(&self, index: usize) -> Option<&FlexibleEntry> {
-        self.entries.get(index)
-    }
-
     pub fn clear(&mut self) {
         self.entries.clear();
         self.current_size = 0;
@@ -57,21 +52,14 @@ impl MemoryTable {
 }
 
 pub struct MemoryTableIterator<'a> {
-    table: &'a MemoryTable,
-    pos: usize,
+    it: Box<dyn Iterator<Item = &'a FlexibleEntry> + 'a>,
 }
 
 impl<'a> Iterator for MemoryTableIterator<'a> {
     type Item = &'a FlexibleEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.table.max_table_size() {
-            return None;
-        }
-
-        let result = self.table.get(self.pos);
-        self.pos += 1;
-        result
+        self.it.next()
     }
 }
 
@@ -81,8 +69,7 @@ impl<'a> IntoIterator for &'a MemoryTable {
 
     fn into_iter(self) -> Self::IntoIter {
         MemoryTableIterator {
-            table: self,
-            pos: 0,
+            it: Box::new(self.entries.iter()),
         }
     }
 }
