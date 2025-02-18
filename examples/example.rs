@@ -3,7 +3,9 @@ use rand::Rng;
 
 use kvs::core::entry::flexible_entry::FlexibleEntry;
 use kvs::core::field::FlexibleField;
-use kvs::core::table::{config::TableConfig, simple_table::SimpleTable, table::Table};
+use kvs::core::storage::{
+    config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
+};
 
 const TOTAL_VALUE: usize = 100000;
 
@@ -27,8 +29,8 @@ fn main() {
     info!("start example");
 
     let table_name = "/tmp/kvs/examples/example_table";
-    let config = TableConfig::new_config(512, 16);
-    let mut table = SimpleTable::new(table_name, config);
+    let config = StorageConfig::new_config(512, 16);
+    let mut table = OrderedStorage::new(table_name, config);
 
     let mut expected = Vec::with_capacity(TOTAL_VALUE);
 

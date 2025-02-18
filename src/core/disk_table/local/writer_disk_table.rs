@@ -4,48 +4,48 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::core::{
+    disk_table::{disk_table, local::offset::Offset},
     entry::flexible_entry::FlexibleEntry,
     field::{FieldSize, FlexibleField},
-    segment::{offset::Offset, segment},
 };
 use crate::errors::Result;
 
-pub type WriterFlexibleSegmentPtr = segment::WriterSegmentPtr<FlexibleField, FlexibleField>;
+pub type WriterFlexibleDiskTablePtr = disk_table::WriterDiskTablePtr<FlexibleField, FlexibleField>;
 
-pub struct WriterFlexibleSegment {
-    segment_path: PathBuf,
+pub struct WriterFlexibleDiskTable {
+    disk_table_path: PathBuf,
 
     buf: Option<io::BufWriter<fs::File>>,
     entries_offsets: Vec<(Offset, Offset)>,
     segment_offset: u32,
 }
 
-impl WriterFlexibleSegment {
-    pub(super) fn new<P: AsRef<Path>>(segment_path: P) -> WriterFlexibleSegmentPtr {
+impl WriterFlexibleDiskTable {
+    pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> WriterFlexibleDiskTablePtr {
         let mut options = fs::OpenOptions::new();
         options.write(true).create(true);
 
-        if let Err(er) = options.open(segment_path.as_ref()) {
+        if let Err(er) = options.open(disk_table_path.as_ref()) {
             panic!(
                 "FlexibleSegment: Failed to create part. path={}, error= {}",
-                segment_path.as_ref().display(),
+                disk_table_path.as_ref().display(),
                 er
             );
         };
 
-        let fd = match fs::File::create(segment_path.as_ref()) {
+        let fd = match fs::File::create(disk_table_path.as_ref()) {
             Ok(fd) => fd,
             Err(er) => {
                 panic!(
                     "Failed to create new segment. path={}, error= {}",
-                    segment_path.as_ref().display(),
+                    disk_table_path.as_ref().display(),
                     er
                 );
             }
         };
 
         Box::new(Self {
-            segment_path: segment_path.as_ref().to_path_buf(),
+            disk_table_path: disk_table_path.as_ref().to_path_buf(),
             buf: Some(io::BufWriter::new(fd)),
             entries_offsets: Vec::<(Offset, Offset)>::new(),
             segment_offset: 0,
@@ -53,20 +53,20 @@ impl WriterFlexibleSegment {
     }
 }
 
-impl segment::WriterSegment<FlexibleField, FlexibleField> for WriterFlexibleSegment {}
+impl disk_table::WriterDiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {}
 
-impl segment::Segment<FlexibleField, FlexibleField> for WriterFlexibleSegment {
+impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
     fn get_path(&self) -> &Path {
-        self.segment_path.as_path()
+        self.disk_table_path.as_path()
     }
 
     fn remove(&self) -> Result<()> {
-        fs::remove_file(self.segment_path.as_path())?;
+        fs::remove_file(self.disk_table_path.as_path())?;
         Ok(())
     }
 }
 
-impl segment::Writer<FlexibleField, FlexibleField> for WriterFlexibleSegment {
+impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
     fn write(&mut self, entry: FlexibleEntry) -> Result<()> {
         let key_offset = self.segment_offset;
         self.segment_offset += entry.get_key().size() as u32;
