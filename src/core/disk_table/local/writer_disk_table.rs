@@ -67,11 +67,19 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskT
 }
 
 impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
-    fn write(&mut self, entry: FlexibleEntry) -> Result<()> {
-        let key_offset = self.segment_offset;
-        self.segment_offset += entry.get_key().size() as u32;
-        let value_offset = self.segment_offset;
-        self.segment_offset += entry.get_value().size() as u32;
+    fn write(&mut self, entry: &FlexibleEntry) -> Result<()> {
+        let entry_metadata_offset = 2 * size_of::<u32>() as u32;
+
+        let key_offset = self.segment_offset + entry_metadata_offset;
+        let value_offset = key_offset + entry.get_key().size() as u32;
+
+        let esstimate_entry_size = entry_metadata_offset as usize + entry.size();
+        let mut buffer = vec![0; esstimate_entry_size];
+        let entry_bytes = entry.serialize_to(buffer.as_mut_slice())?;
+
+        assert_eq!(entry_bytes, esstimate_entry_size as u64);
+
+        self.segment_offset += entry_bytes as u32;
 
         self.entries_offsets.push((
             Offset {
@@ -83,16 +91,6 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
                 len: entry.get_value().size() as u32,
             },
         ));
-
-        match &mut self.buf {
-            Some(buf) => {
-                buf.write(&entry.get_key().data)?;
-                buf.write(&entry.get_value().data)?;
-            }
-            None => {
-                panic!("broken buffer")
-            }
-        }
 
         Ok(())
     }

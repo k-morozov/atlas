@@ -4,7 +4,7 @@ use crate::core::{
     disk_table::{
         disk_table::{get_disk_table_name_by_level, get_disk_table_path, ReaderDiskTableIterator},
         id::DiskTableID,
-        local::segment_builder::FlexibleSegmentBuilder,
+        local::disk_table_builder::DiskTableBuilder,
     },
     field::FlexibleField,
 };
@@ -51,7 +51,7 @@ pub fn merge_disk_tables(
             .map(|disk_table| disk_table.into_iter())
             .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
         let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
-        let mut builder = FlexibleSegmentBuilder::new(disk_table_path.as_path());
+        let mut builder = DiskTableBuilder::new(disk_table_path.as_path());
 
         while entries.iter().any(|v| v.is_some()) {
             let (index, entry) = entries

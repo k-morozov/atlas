@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use super::storage::Storage;
 use crate::core::disk_table::{
     disk_table::{get_disk_table_name, get_disk_table_path},
-    local::segment_builder::FlexibleSegmentBuilder,
+    local::disk_table_builder::DiskTableBuilder,
     utils::{get_disk_tables, LevelsReaderDiskTables, SEGMENTS_MIN_LEVEL},
 };
 use crate::core::entry::flexible_entry::FlexibleEntry;
@@ -74,7 +74,7 @@ impl OrderedStorage {
             .mem_table
             .into_iter()
             .fold(
-                FlexibleSegmentBuilder::new(disk_table_path.as_path()),
+                DiskTableBuilder::new(disk_table_path.as_path()),
                 |mut builder, entry| {
                     builder.append_entry(entry);
                     builder

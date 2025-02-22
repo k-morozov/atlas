@@ -6,7 +6,7 @@ use crate::core::disk_table::local::reader_disk_table::ReaderFlexibleDiskTablePt
 use crate::errors::Error;
 
 use super::disk_table::get_disk_table_path;
-use super::local::segment_builder::FlexibleSegmentBuilder;
+use super::local::disk_table_builder::DiskTableBuilder;
 
 pub type Levels = u8;
 pub type ReaderDiskTables = Vec<ReaderFlexibleDiskTablePtr>;
@@ -39,7 +39,7 @@ pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables, Erro
                     let result = match extract_level(disk_table_name) {
                         Some(level) => {
                             let disk_table_path = get_disk_table_path(table_path, &disk_table_name);
-                            let sg = FlexibleSegmentBuilder::from(disk_table_path).build();
+                            let sg = DiskTableBuilder::from(disk_table_path).build();
                             (level, sg)
                         }
                         None => panic!("failed parse disk table name ={}.", disk_table_name),

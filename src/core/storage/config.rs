@@ -1,7 +1,10 @@
 pub const DEFAULT_TABLES_PATH: &'static str = "/tmp/kvs/tables/";
-pub const DEFAULT_TEST_TABLES_PATH: &'static str = "/tmp/";
+pub const DEFAULT_TEST_TABLES_PATH: &'static str = "/tmp/kvs/";
 pub const DETAULT_MEM_TABLE_SIZE: usize = 4;
 pub const DEFAULT_SEGMENTS_LIMIT: usize = 4;
+
+pub const DEFAULT_DISK_BLOCK_SIZE: usize = 4 * 2 << 10;
+pub const DEFAULT_DISK_ERASE_BLOCK_SIZE: usize = 4 * 2 << 20;
 
 #[derive(Clone)]
 pub struct StorageConfig {

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use kvs::core::disk_table::disk_table::get_disk_table_name;
 use kvs::core::disk_table::id::DiskTableID;
-use kvs::core::disk_table::local::segment_builder::FlexibleSegmentBuilder;
+use kvs::core::disk_table::local::disk_table_builder::DiskTableBuilder;
 use kvs::core::entry::flexible_entry::FlexibleEntry;
 use kvs::core::field::FlexibleField;
 
@@ -40,7 +40,7 @@ fn simple_flexible_segment() -> io::Result<()> {
     let segment = entries
         .into_iter()
         .fold(
-            FlexibleSegmentBuilder::new(disk_table_path),
+            DiskTableBuilder::new(disk_table_path),
             |mut builder, entry| {
                 builder.append_entry(&entry);
                 builder
