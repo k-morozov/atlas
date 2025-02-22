@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use crate::core::{
     disk_table::{disk_table, local::offset::Offset},
-    entry::flexible_entry::FlexibleEntry,
-    field::{FieldSize, FlexibleField},
+    entry::{entry::ENTRY_METADATA_OFFSET, flexible_entry::FlexibleEntry},
+    field::FlexibleField,
 };
 use crate::errors::Result;
 
@@ -16,7 +16,7 @@ pub struct WriterFlexibleDiskTable {
     disk_table_path: PathBuf,
 
     buf: Option<io::BufWriter<fs::File>>,
-    entries_offsets: Vec<(Offset, Offset)>,
+    index_entries: Vec<Offset>,
     segment_offset: u32,
 }
 
@@ -47,7 +47,7 @@ impl WriterFlexibleDiskTable {
         Box::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             buf: Some(io::BufWriter::new(fd)),
-            entries_offsets: Vec::<(Offset, Offset)>::new(),
+            index_entries: Vec::<Offset>::new(),
             segment_offset: 0,
         })
     }
@@ -68,12 +68,9 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskT
 
 impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
     fn write(&mut self, entry: &FlexibleEntry) -> Result<()> {
-        let entry_metadata_offset = 2 * size_of::<u32>() as u32;
+        let entry_offset = self.segment_offset;
 
-        let key_offset = self.segment_offset + entry_metadata_offset;
-        let value_offset = key_offset + entry.get_key().size() as u32;
-
-        let esstimate_entry_size = entry_metadata_offset as usize + entry.size();
+        let esstimate_entry_size = ENTRY_METADATA_OFFSET as usize + entry.size();
         let mut buffer = vec![0; esstimate_entry_size];
         let entry_bytes = entry.serialize_to(buffer.as_mut_slice())?;
 
@@ -90,16 +87,7 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
             }
         }
 
-        self.entries_offsets.push((
-            Offset {
-                start: key_offset,
-                len: entry.get_key().size() as u32,
-            },
-            Offset {
-                start: value_offset,
-                len: entry.get_value().size() as u32,
-            },
-        ));
+        self.index_entries.push(Offset { pos: entry_offset });
 
         Ok(())
     }
@@ -109,21 +97,12 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
             panic!("broken buffer")
         };
 
-        for offsets in &self.entries_offsets {
-            let temp = vec![
-                offsets.0.start,
-                offsets.0.len,
-                offsets.1.start,
-                offsets.1.len,
-            ];
-
-            for offset in temp {
-                let bytes = offset.to_le_bytes();
-                buffer.write(&bytes)?;
-            }
+        for offset in &self.index_entries {
+            let bytes = offset.pos.to_le_bytes();
+            buffer.write(&bytes)?;
         }
 
-        buffer.write(&(self.entries_offsets.len() as u32).to_le_bytes())?;
+        buffer.write(&(self.index_entries.len() as u32).to_le_bytes())?;
         buffer.flush()?;
 
         let fd = self.buf.take().unwrap().into_inner().unwrap();

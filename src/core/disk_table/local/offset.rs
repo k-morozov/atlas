@@ -1,4 +1,5 @@
+pub type Offsets = Vec<Offset>;
+
 pub struct Offset {
-    pub start: u32,
-    pub len: u32,
+    pub pos: u32,
 }
