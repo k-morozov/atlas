@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use crate::core::entry::entry::ENTRY_METADATA_OFFSET;
+use crate::core::disk_table::local::block;
 use crate::core::marshal::read_u32;
 use crate::core::{
     disk_table::{disk_table, local::offset::Offset},
@@ -34,14 +34,14 @@ impl ReaderFlexibleDiskTable {
             ),
         };
 
-        let _offset = fd.seek(SeekFrom::End(-(size_of::<u32>() as i64)));
+        let _offset = fd.seek(SeekFrom::End(-(block::INDEX_COUNT_SIZE as i64)));
 
-        let mut buffer = [0u8; size_of::<u32>()];
+        let mut buffer = [0u8; block::INDEX_COUNT_SIZE];
         let Ok(bytes) = fd.read(&mut buffer) else {
             panic!("Failed read from disk")
         };
 
-        assert_eq!(bytes, size_of::<u32>());
+        assert_eq!(bytes, block::INDEX_COUNT_SIZE);
 
         let count_entries = u32::from_le_bytes(buffer);
         let Ok(offsets) = ReaderFlexibleDiskTable::read_offsets(&mut fd, count_entries) else {
@@ -60,22 +60,27 @@ impl ReaderFlexibleDiskTable {
     }
 
     fn read_offsets(fd: &mut fs::File, count_entries: u32) -> Result<Offsets> {
-        // @todo to block
-        let size_entry_offsets = size_of::<u32>() as i64;
         let _offset = fd.seek(SeekFrom::End(
-            -(size_of::<u32>() as i64 + count_entries as i64 * size_entry_offsets),
+            -(block::INDEX_COUNT_SIZE as i64
+                + count_entries as i64 * block::INDEX_ENTRIES_SIZE as i64),
         ))?;
+
         let mut index_entries = Offsets::new();
-        index_entries.reserve(size_entry_offsets as usize);
 
         for _entry_offset in 0..count_entries {
-            let mut buffer = [0u8; size_of::<u32>()];
+            let mut buffer = [0u8; block::INDEX_ENTRIES_SIZE];
 
             let bytes = fd.read(&mut buffer)?;
-            assert_eq!(bytes, size_of::<u32>());
-            let entry_offset = read_u32(&buffer)?;
+            assert_eq!(bytes, block::INDEX_ENTRIES_SIZE);
+            let entry_offset = read_u32(&buffer[..block::INDEX_ENTRIES_OFFSET_SIZE])?;
+            let entry_size = read_u32(&buffer[block::INDEX_ENTRIES_OFFSET_SIZE..])?;
 
-            index_entries.push(Offset { pos: entry_offset });
+            assert_ne!(entry_size, 0);
+
+            index_entries.push(Offset {
+                pos: entry_offset,
+                size: entry_size,
+            });
         }
 
         Ok(index_entries)
@@ -128,26 +133,27 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
             .borrow_mut()
             .seek(SeekFrom::Start(offset.pos as u64))?;
 
-        // read metadata
-        let mut metadata = vec![0u8; ENTRY_METADATA_OFFSET as usize];
-        let bytes = self.fd.borrow_mut().read(&mut metadata)?;
-        assert_eq!(bytes, ENTRY_METADATA_OFFSET as usize);
-        let key_len = read_u32(&metadata)?;
-        let value_len = read_u32(&metadata[size_of::<u32>() as usize..])?;
+        assert_ne!(offset.size, 0);
 
-        // read key
-        let mut key_buffer = vec![0u8; key_len as usize];
-        let bytes = self.fd.borrow_mut().read(&mut key_buffer)?;
-        assert_eq!(bytes, key_len as usize);
+        // read entry
+        let mut buffer = vec![0u8; offset.size as usize];
+        let bytes: usize = self.fd.borrow_mut().read(&mut buffer)?;
+        assert_eq!(bytes, offset.size as usize);
 
-        // read value
-        let mut value_buffer = vec![0u8; value_len as usize];
-        let bytes = self.fd.borrow_mut().read(&mut value_buffer)?;
-        assert_eq!(bytes, value_len as usize);
+        // parse metadata
+        let key_len = read_u32(&buffer[0..])? as usize;
+        let _value_len = read_u32(&buffer[size_of::<u32>() as usize..])?;
+
+        let (buffer_with_key, buffer_value) =
+            buffer.split_at_mut(block::ENTRY_METADATA_OFFSET as usize + key_len);
+
+        let key_buffer = &mut buffer_with_key[block::ENTRY_METADATA_OFFSET as usize
+            ..block::ENTRY_METADATA_OFFSET as usize + key_len];
+        let value_buffer = &mut buffer_value[..];
 
         return Ok(Some(FlexibleEntry::new(
-            FlexibleField::new(key_buffer),
-            FlexibleField::new(value_buffer),
+            FlexibleField::new(key_buffer.to_vec()),
+            FlexibleField::new(value_buffer.to_vec()),
         )));
     }
 

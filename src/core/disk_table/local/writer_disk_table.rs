@@ -3,12 +3,15 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::core::marshal::write_u32;
 use crate::core::{
     disk_table::{disk_table, local::offset::Offset},
-    entry::{entry::ENTRY_METADATA_OFFSET, flexible_entry::FlexibleEntry},
+    entry::flexible_entry::FlexibleEntry,
     field::FlexibleField,
 };
 use crate::errors::Result;
+
+use super::block;
 
 pub type WriterFlexibleDiskTablePtr = disk_table::WriterDiskTablePtr<FlexibleField, FlexibleField>;
 
@@ -70,7 +73,7 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
     fn write(&mut self, entry: &FlexibleEntry) -> Result<()> {
         let entry_offset = self.segment_offset;
 
-        let esstimate_entry_size = ENTRY_METADATA_OFFSET as usize + entry.size();
+        let esstimate_entry_size = block::ENTRY_METADATA_OFFSET as usize + entry.size();
         let mut buffer = vec![0; esstimate_entry_size];
         let entry_bytes = entry.serialize_to(buffer.as_mut_slice())?;
 
@@ -87,7 +90,12 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
             }
         }
 
-        self.index_entries.push(Offset { pos: entry_offset });
+        assert_ne!(esstimate_entry_size, 0);
+
+        self.index_entries.push(Offset {
+            pos: entry_offset,
+            size: esstimate_entry_size as u32,
+        });
 
         Ok(())
     }
@@ -98,8 +106,10 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
         };
 
         for offset in &self.index_entries {
-            let bytes = offset.pos.to_le_bytes();
-            buffer.write(&bytes)?;
+            let mut tmp = [0; block::INDEX_ENTRIES_SIZE];
+            write_u32(&mut tmp[0..block::INDEX_ENTRIES_OFFSET_SIZE], offset.pos)?;
+            write_u32(&mut tmp[block::INDEX_ENTRIES_OFFSET_SIZE..], offset.size)?;
+            buffer.write(&tmp)?;
         }
 
         buffer.write(&(self.index_entries.len() as u32).to_le_bytes())?;
