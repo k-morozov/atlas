@@ -81,6 +81,15 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
 
         self.segment_offset += entry_bytes as u32;
 
+        match &mut self.buf {
+            Some(buf) => {
+                buf.write(buffer.as_slice())?;
+            }
+            None => {
+                panic!("broken buffer")
+            }
+        }
+
         self.entries_offsets.push((
             Offset {
                 start: key_offset,

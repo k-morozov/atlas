@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 use super::reader_disk_table::{ReaderFlexibleDiskTable, ReaderFlexibleDiskTablePtr};
 use super::writer_disk_table::{WriterFlexibleDiskTable, WriterFlexibleDiskTablePtr};
 use crate::core::entry::flexible_entry::FlexibleEntry;
-use crate::core::storage::config::DEFAULT_DISK_ERASE_BLOCK_SIZE;
+// use crate::core::storage::config::DEFAULT_DISK_ERASE_BLOCK_SIZE;
 
 pub struct DiskTableBuilder {
     disk_table_path: PathBuf,
     building_disk_table: Option<WriterFlexibleDiskTablePtr>,
-    _buffer: [u8; DEFAULT_DISK_ERASE_BLOCK_SIZE],
+    // _buffer: [u8; DEFAULT_DISK_ERASE_BLOCK_SIZE],
 }
 
 impl DiskTableBuilder {
@@ -16,7 +16,7 @@ impl DiskTableBuilder {
         DiskTableBuilder {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             building_disk_table: Some(WriterFlexibleDiskTable::new(disk_table_path)),
-            _buffer: [0u8; DEFAULT_DISK_ERASE_BLOCK_SIZE],
+            // _buffer: [0u8; DEFAULT_DISK_ERASE_BLOCK_SIZE],
         }
     }
 
@@ -24,7 +24,7 @@ impl DiskTableBuilder {
         DiskTableBuilder {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             building_disk_table: None,
-            _buffer: [0u8; DEFAULT_DISK_ERASE_BLOCK_SIZE],
+            // _buffer: [0u8; DEFAULT_DISK_ERASE_BLOCK_SIZE],
         }
     }
 
