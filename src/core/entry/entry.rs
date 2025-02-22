@@ -18,16 +18,8 @@ where
         &self.0
     }
 
-    pub fn get_mut_key(&mut self) -> &mut K {
-        &mut self.0
-    }
-
     pub fn get_value(&self) -> &V {
         &self.1
-    }
-
-    pub fn get_mut_value(&mut self) -> &mut V {
-        &mut self.1
     }
 
     pub fn size(&self) -> usize {
