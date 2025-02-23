@@ -2,6 +2,7 @@ use crate::core::disk_table::local::block;
 use crate::core::field::{Field, FieldSize};
 use crate::core::marshal::{write_data, write_u32};
 use crate::errors::Result;
+use crate::logicerr;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Entry<K, V>(K, V);
@@ -56,6 +57,10 @@ where
             &mut self.get_value().data(),
             v_bytes as usize,
         )?;
+
+        if offset == 0 {
+            return logicerr!("Cann't be zero bytes after serialize entry");
+        }
 
         Ok(offset as u64)
     }

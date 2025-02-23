@@ -1,31 +1,32 @@
-use crate::core::storage::config::DEFAULT_DISK_ERASE_BLOCK_SIZE;
-use std::ptr;
+use crate::core::{
+    entry::flexible_entry::FlexibleEntry, storage::config::DEFAULT_DATA_BLOCK_SIZE,
+};
 
 pub const ENTRY_METADATA_OFFSET: u32 = 2 * size_of::<u32>() as u32;
+
+pub(super) const INDEX_BLOCK_OFFSET: usize = size_of::<u32>();
+pub(super) const INDEX_BLOCK_SIZE: usize = size_of::<u32>();
+pub(super) const INDEX_BLOCKS_OFFSET_SIZE: usize = INDEX_BLOCK_OFFSET + INDEX_BLOCK_SIZE;
+pub(super) const INDEX_BLOCKS_COUNT_SIZE: usize = size_of::<u32>();
 
 pub(super) const INDEX_ENTRIES_OFFSET_SIZE: usize = size_of::<u32>();
 pub(super) const INDEX_ENTRIES_LEN_SIZE: usize = size_of::<u32>();
 pub(super) const INDEX_ENTRIES_SIZE: usize = INDEX_ENTRIES_OFFSET_SIZE + INDEX_ENTRIES_LEN_SIZE;
-
-pub(super) const INDEX_COUNT_SIZE: usize = size_of::<u32>();
-
-pub enum BlockAppendStatus {
-    Appended,
-    NotEnoughSpace,
-}
+pub(super) const INDEX_ENTRIES_COUNT_SIZE: usize = size_of::<u32>();
 
 pub struct DataBlock {
     block_data: Vec<u8>,
     max_size: usize,
-    current_size: usize,
+    current_pos: usize,
 }
 
 impl DataBlock {
     pub fn new() -> Self {
         Self {
-            block_data: vec![0u8; DEFAULT_DISK_ERASE_BLOCK_SIZE as usize],
-            max_size: DEFAULT_DISK_ERASE_BLOCK_SIZE,
-            current_size: 0,
+            // @todo change
+            block_data: vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize],
+            max_size: DEFAULT_DATA_BLOCK_SIZE,
+            current_pos: 0,
         }
     }
 
@@ -33,32 +34,42 @@ impl DataBlock {
         &self.block_data
     }
 
+    pub fn empty(&self) -> bool {
+        self.current_pos == 0
+    }
+
+    pub fn max_size(&self) -> usize {
+        self.max_size
+    }
+
     pub fn current_size(&self) -> usize {
-        self.current_size
+        self.current_pos
     }
 
     pub fn remaining_size(&self) -> usize {
-        self.max_size - self.current_size
+        self.max_size - self.current_pos
     }
 
-    pub fn possible_append(&self, bytes: usize) -> bool {
-        self.current_size + bytes < self.max_size
+    fn possible_append(&self, entry: &FlexibleEntry) -> bool {
+        self.current_pos + ENTRY_METADATA_OFFSET as usize + entry.size() < self.max_size
     }
 
-    pub fn append(&mut self, data: Vec<u8>) {
-        assert!(self.possible_append(data.len()));
-
-        let dst = self.block_data.as_mut_ptr();
-        unsafe {
-            ptr::copy_nonoverlapping(data.as_ptr(), dst.byte_add(self.current_size), data.len());
+    pub fn append(&mut self, entry: &FlexibleEntry) -> crate::errors::Result<usize> {
+        if !self.possible_append(entry) {
+            return Ok(0);
         }
-        self.current_size += data.len();
+
+        let dst = self.block_data.as_mut_slice();
+        let entry_bytes = entry.serialize_to(&mut dst[self.current_pos..])? as usize;
+        self.current_pos += entry_bytes;
+
+        Ok(entry_bytes)
     }
 
     pub fn reset(&mut self) {
         self.block_data.clear();
-        self.block_data = vec![0u8; DEFAULT_DISK_ERASE_BLOCK_SIZE as usize];
+        self.block_data = vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize];
 
-        self.current_size = 0;
+        self.current_pos = 0;
     }
 }

@@ -3,7 +3,7 @@
 [data block 1]
 ...
 [data block N]
-[index block]
+[index blocks]
 offset_start_index_block count_index
 
 ## Data block

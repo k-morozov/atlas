@@ -3,10 +3,7 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::core::{
-    disk_table::disk_table,
-    field::FlexibleField,
-};
+use crate::core::{disk_table::disk_table, field::FlexibleField};
 use crate::errors::Result;
 
 pub type WriterFlexibleDiskTablePtr = disk_table::WriterDiskTablePtr<FlexibleField, FlexibleField>;
@@ -66,9 +63,7 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
             Some(buf) => {
                 buf.write(buffer)?;
             }
-            None => {
-                panic!("broken buffer")
-            }
+            None => panic!("broken buffer"),
         }
 
         Ok(())
@@ -79,9 +74,7 @@ impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTabl
             Some(buffer) => {
                 buffer.flush()?;
             }
-            None => {
-                panic!("broken buffer")
-            }
+            None => panic!("broken buffer"),
         }
 
         let fd = self.buf.take().unwrap().into_inner().unwrap();

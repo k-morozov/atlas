@@ -7,7 +7,7 @@ use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };
 
-const TOTAL_VALUE: usize = 100000;
+const TOTAL_VALUE: usize = 500_000;
 
 pub fn init() {
     simple_logger::SimpleLogger::new().init().unwrap();
@@ -29,14 +29,14 @@ fn main() {
     info!("start example");
 
     let table_name = "/tmp/kvs/examples/example_table";
-    let config = StorageConfig::new_config(512, 16);
+    let config = StorageConfig::new_config(256, 16);
     let mut table = OrderedStorage::new(table_name, config);
 
     let mut expected = Vec::with_capacity(TOTAL_VALUE);
 
     for index in 0..TOTAL_VALUE {
-        let key = FlexibleField::new(generate_random_bytes(4, 16));
-        let value = FlexibleField::new(generate_random_bytes(32, 64));
+        let key = FlexibleField::new(generate_random_bytes(64, 128));
+        let value = FlexibleField::new(generate_random_bytes(512, 1024));
 
         let entry = FlexibleEntry::new(key, value);
         table.put(entry.clone()).unwrap();
@@ -61,18 +61,4 @@ fn main() {
 
         assert_eq!(result.unwrap(), *expected_entry.get_value());
     }
-
-    // for index in 0..100 {
-    //     println!("Start searching index={}", index);
-
-    //     for j in (index..TOTAL_VALUE).step_by(100) {
-    //         println!("Searching index={}, j={}", index, j);
-    //         let result = table.get(Field::new(FieldType::Int32(j as i32))).unwrap();
-
-    //         assert_eq!(
-    //             result.unwrap(),
-    //             Field::new(FieldType::Int32((j as i32) * K))
-    //         );
-    //     }
-    // }
 }

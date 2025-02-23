@@ -1,41 +1,64 @@
-## Results:
-
-17.02.2025
-commit: c89a8cb4423c54f02fc4ff92c5566b2386ebee42
+## Syscalls
 
 ```shell
-2025-02-16T22:09:20.336Z INFO  [example] Start searching index=99990
+real	2m32,892s
+user	1m30,430s
+sys	  0m9,041s
 
-real	57m10,705s
-user	11m5,984s
-sys	    46m3,516s
+
+$ strace -c -e trace=mmap,brk,open,close,write,read,lseek -o strace.log ./example
+$ cat strace.log 
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 66,65   20,001627           1  14046666           read
+ 27,25    8,178276           1   7224026           lseek
+  4,36    1,307611          64     20236           write
+  1,72    0,517506         105      4885           close
+  0,02    0,005543           4      1317           brk
+  0,00    0,000053           2        22           mmap
+------ ----------- ----------- --------- --------- ----------------
+100,00   30,010616           1  21297152           total
+
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 66,73   20,451427           1  14046690           read
+ 27,07    8,297533           1   7224050           lseek
+  4,43    1,356546          67     20238           write
+  1,75    0,536461         109      4885           close
+  0,03    0,008153           4      1919           brk
+  0,00    0,000056           2        22           mmap
+------ ----------- ----------- --------- --------- ----------------
+100,00   30,650176           1  21297804           total
 ```
 
-commit: e819a30dffe974ac5349d5b41f70b9d4a301efdb
+## RocksDB
+
 ```shell
-2025-02-18T01:09:39.713Z INFO  [example] searching index=80000
-2025-02-18T01:10:17.273Z INFO  [example] searching index=90000
+real	0m27,838s
+user	0m29,984s
+sys	  0m1,689s
 
-real	3m32,744s
-user	1m21,514s
-sys	2m10,626s
-```
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 99,60    0,502698           1    500124           write
+  0,27    0,001347           0      2242           brk
+  0,10    0,000520           6        84           mmap
+  0,02    0,000078           1        60           close
+  0,01    0,000067           1        34           read
+  0,00    0,000000           0         1           lseek
+------ ----------- ----------- --------- --------- ----------------
+100,00    0,504710           1    502545           total
 
-commit: 245fe70a68ec527ba93158e83435dd9ff606b2e0
-```shell
-2025-02-18T21:14:15.524Z INFO  [example] Data was inserted.
-2025-02-18T21:14:15.524Z INFO  [example] searching index=0
-2025-02-18T21:14:15.570Z INFO  [example] searching index=10000
-2025-02-18T21:14:15.616Z INFO  [example] searching index=20000
-2025-02-18T21:14:15.661Z INFO  [example] searching index=30000
-2025-02-18T21:14:15.707Z INFO  [example] searching index=40000
-2025-02-18T21:14:15.753Z INFO  [example] searching index=50000
-2025-02-18T21:14:15.799Z INFO  [example] searching index=60000
-2025-02-18T21:14:15.844Z INFO  [example] searching index=70000
-2025-02-18T21:14:15.890Z INFO  [example] searching index=80000
-2025-02-18T21:14:15.945Z INFO  [example] searching index=90000
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 99,53    0,383944           0    500125           write
+  0,29    0,001130           0      2251           brk
+  0,12    0,000460           5        84           mmap
+  0,04    0,000136           2        60           close
+  0,02    0,000073           2        34           read
+  0,00    0,000000           0         1           lseek
+------ ----------- ----------- --------- --------- ----------------
+100,00    0,385743           0    502555           total
 
-real	0m3,362s
-user	0m1,947s
-sys	0m0,852s
+
 ```
