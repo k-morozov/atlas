@@ -82,10 +82,15 @@ impl OrderedStorage {
             )
             .build();
 
-        self.disk_tables
-            .entry(SEGMENTS_MIN_LEVEL)
-            .or_insert_with(Vec::new)
-            .push(segment_from_mem_table);
+        match segment_from_mem_table {
+            Ok(disk_table) => {
+                self.disk_tables
+                    .entry(SEGMENTS_MIN_LEVEL)
+                    .or_insert_with(Vec::new)
+                    .push(disk_table);
+            }
+            Err(er) => panic!("Failed save_mem_table. {}", er),
+        }
 
         self.mem_table = MemoryTable::new(self.config.mem_table_size);
 

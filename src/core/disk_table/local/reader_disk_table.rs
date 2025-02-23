@@ -135,14 +135,17 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
 
         assert_ne!(offset.size, 0);
 
-        // read entry
+        // read row with entry
         let mut buffer = vec![0u8; offset.size as usize];
         let bytes: usize = self.fd.borrow_mut().read(&mut buffer)?;
         assert_eq!(bytes, offset.size as usize);
 
         // parse metadata
         let key_len = read_u32(&buffer[0..])? as usize;
-        let _value_len = read_u32(&buffer[size_of::<u32>() as usize..])?;
+        assert_ne!(key_len, 0);
+
+        let value_len = read_u32(&buffer[size_of::<u32>() as usize..])?;
+        assert_ne!(value_len, 0);
 
         let (buffer_with_key, buffer_value) =
             buffer.split_at_mut(block::ENTRY_METADATA_OFFSET as usize + key_len);

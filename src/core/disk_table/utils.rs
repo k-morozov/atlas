@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::core::disk_table::local::reader_disk_table::ReaderFlexibleDiskTablePtr;
-use crate::errors::Error;
+use crate::errors::Result;
 
 use super::disk_table::get_disk_table_path;
 use super::local::disk_table_builder::DiskTableBuilder;
@@ -26,7 +26,7 @@ fn extract_level(disk_table: &str) -> Option<u8> {
     level.parse::<u8>().ok()
 }
 
-pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables, Error> {
+pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables> {
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
 
     let disk_tables = fs::read_dir(segment_dir)?
@@ -39,7 +39,9 @@ pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables, Erro
                     let result = match extract_level(disk_table_name) {
                         Some(level) => {
                             let disk_table_path = get_disk_table_path(table_path, &disk_table_name);
-                            let sg = DiskTableBuilder::from(disk_table_path).build();
+
+                            // @todo
+                            let sg = DiskTableBuilder::from(disk_table_path).build().unwrap();
                             (level, sg)
                         }
                         None => panic!("failed parse disk table name ={}.", disk_table_name),

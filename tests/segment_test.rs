@@ -46,7 +46,8 @@ fn simple_flexible_segment() -> io::Result<()> {
                 builder
             },
         )
-        .build();
+        .build()
+        .unwrap();
 
     for index in (1..MAX_SIZE).step_by(1) {
         let actual = segment

@@ -3,24 +3,17 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::core::marshal::write_u32;
 use crate::core::{
-    disk_table::{disk_table, local::offset::Offset},
-    entry::flexible_entry::FlexibleEntry,
+    disk_table::disk_table,
     field::FlexibleField,
 };
 use crate::errors::Result;
-
-use super::block;
 
 pub type WriterFlexibleDiskTablePtr = disk_table::WriterDiskTablePtr<FlexibleField, FlexibleField>;
 
 pub struct WriterFlexibleDiskTable {
     disk_table_path: PathBuf,
-
     buf: Option<io::BufWriter<fs::File>>,
-    index_entries: Vec<Offset>,
-    segment_offset: u32,
 }
 
 impl WriterFlexibleDiskTable {
@@ -50,8 +43,6 @@ impl WriterFlexibleDiskTable {
         Box::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             buf: Some(io::BufWriter::new(fd)),
-            index_entries: Vec::<Offset>::new(),
-            segment_offset: 0,
         })
     }
 }
@@ -70,50 +61,28 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskT
 }
 
 impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
-    fn write(&mut self, entry: &FlexibleEntry) -> Result<()> {
-        let entry_offset = self.segment_offset;
-
-        let esstimate_entry_size = block::ENTRY_METADATA_OFFSET as usize + entry.size();
-        let mut buffer = vec![0; esstimate_entry_size];
-        let entry_bytes = entry.serialize_to(buffer.as_mut_slice())?;
-
-        assert_eq!(entry_bytes, esstimate_entry_size as u64);
-
-        self.segment_offset += entry_bytes as u32;
-
+    fn write(&mut self, buffer: &[u8]) -> Result<()> {
         match &mut self.buf {
             Some(buf) => {
-                buf.write(buffer.as_slice())?;
+                buf.write(buffer)?;
             }
             None => {
                 panic!("broken buffer")
             }
         }
 
-        assert_ne!(esstimate_entry_size, 0);
-
-        self.index_entries.push(Offset {
-            pos: entry_offset,
-            size: esstimate_entry_size as u32,
-        });
-
         Ok(())
     }
 
     fn flush(&mut self) -> Result<()> {
-        let Some(buffer) = &mut self.buf else {
-            panic!("broken buffer")
-        };
-
-        for offset in &self.index_entries {
-            let mut tmp = [0; block::INDEX_ENTRIES_SIZE];
-            write_u32(&mut tmp[0..block::INDEX_ENTRIES_OFFSET_SIZE], offset.pos)?;
-            write_u32(&mut tmp[block::INDEX_ENTRIES_OFFSET_SIZE..], offset.size)?;
-            buffer.write(&tmp)?;
+        match &mut self.buf {
+            Some(buffer) => {
+                buffer.flush()?;
+            }
+            None => {
+                panic!("broken buffer")
+            }
         }
-
-        buffer.write(&(self.index_entries.len() as u32).to_le_bytes())?;
-        buffer.flush()?;
 
         let fd = self.buf.take().unwrap().into_inner().unwrap();
         fd.sync_all()?;

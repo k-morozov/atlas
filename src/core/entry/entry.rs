@@ -31,6 +31,9 @@ where
         let k_bytes = self.get_key().size() as u32;
         let v_bytes = self.get_value().size() as u32;
 
+        assert_ne!(k_bytes, 0);
+        assert_ne!(v_bytes, 0);
+
         let mut offset = 0usize;
 
         // write size of key

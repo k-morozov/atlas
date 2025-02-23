@@ -75,14 +75,16 @@ pub fn merge_disk_tables(
             }
         }
 
-        let merged_segment = builder.build();
+        let Ok(merged_disk_table) = builder.build() else {
+            panic!("Failed create disk table for merge_disk_tables")
+        };
 
-        for merging_segment in storages.get_mut(&merging_level).unwrap() {
-            match merging_segment.remove() {
+        for merging_disk_table in storages.get_mut(&merging_level).unwrap() {
+            match merging_disk_table.remove() {
                 Ok(_) => {}
                 Err(er) => panic!(
-                    "failed remove merged segment: path={}, error={}",
-                    merging_segment.get_path().display(),
+                    "failed remove merged disk table: path={}, error={}",
+                    merging_disk_table.get_path().display(),
                     er,
                 ),
             }
@@ -92,6 +94,6 @@ pub fn merge_disk_tables(
         storages
             .entry(level_for_new_sg)
             .or_insert_with(Vec::new)
-            .push(merged_segment);
+            .push(merged_disk_table);
     }
 }
