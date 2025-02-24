@@ -44,7 +44,7 @@ impl DiskTableBuilder {
     }
 
     pub fn append_entry(&mut self, entry: &FlexibleEntry) -> &mut Self {
-        let esstimate_entry_size = data_block::ENTRY_METADATA_OFFSET as usize + entry.size();
+        let esstimate_entry_size = data_block::ENTRY_METADATA_SIZE as usize + entry.size();
 
         let Some(data_block) = &mut self.data_block else {
             panic!("Logic error")

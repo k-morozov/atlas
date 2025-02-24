@@ -115,7 +115,7 @@ impl ReaderFlexibleDiskTable {
     ) -> Result<IndexBlocks> {
         let _offset = fd.seek(SeekFrom::End(-(start_offset)))?;
 
-        let mut index_blocks = IndexBlocks::new();
+        let mut index_blocks = IndexBlocks::with_capacity(count_blocks as usize);
 
         for _ in 0..count_blocks {
             index_blocks.append(IndexBlock::from(fd)?);
@@ -186,10 +186,10 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
         assert_ne!(value_len, 0);
 
         let (buffer_with_key, buffer_value) =
-            buffer.split_at_mut(data_block::ENTRY_METADATA_OFFSET as usize + key_len);
+            buffer.split_at_mut(data_block::ENTRY_METADATA_SIZE as usize + key_len);
 
-        let key_buffer = &mut buffer_with_key[data_block::ENTRY_METADATA_OFFSET as usize
-            ..data_block::ENTRY_METADATA_OFFSET as usize + key_len];
+        let key_buffer = &mut buffer_with_key[data_block::ENTRY_METADATA_SIZE as usize
+            ..data_block::ENTRY_METADATA_SIZE as usize + key_len];
         let value_buffer = &mut buffer_value[..];
 
         return Ok(Some(FlexibleEntry::new(

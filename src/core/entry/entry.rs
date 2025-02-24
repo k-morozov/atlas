@@ -42,7 +42,7 @@ where
 
         // write size of value
         offset += write_u32(&mut buffer[offset..offset + size_of::<u32>()], v_bytes)?;
-        assert_eq!(offset as u32, data_block::ENTRY_METADATA_OFFSET);
+        assert_eq!(offset as u32, data_block::ENTRY_METADATA_SIZE);
 
         // write key
         offset += write_data(

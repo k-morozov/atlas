@@ -68,6 +68,12 @@ impl IndexBlocks {
         }
     }
 
+    pub fn with_capacity(n: usize) -> Self {
+        Self {
+            data: Vec::<IndexBlock>::with_capacity(n),
+        }
+    }
+
     pub fn size(&self) -> u32 {
         let mut result = 0;
         for v in &self.data {
