@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     fs,
     io::{Read, Seek, SeekFrom},
 };
@@ -11,7 +12,7 @@ use crate::core::{
 };
 use crate::errors::Result;
 
-use super::writer_disk_table::WriterFlexibleDiskTablePtr;
+use super::{block, writer_disk_table::WriterFlexibleDiskTablePtr};
 
 pub const ENTRY_METADATA_SIZE: u32 = 2 * size_of::<u32>() as u32;
 
@@ -20,7 +21,7 @@ fn block_entry_size(entry: &FlexibleEntry) -> usize {
 }
 
 pub struct DataBlock {
-    block_data: Vec<u8>,
+    block_data: RefCell<Vec<u8>>,
     max_size: usize,
     current_pos: usize,
 
@@ -63,15 +64,11 @@ impl DataBlock {
     pub fn new() -> Self {
         Self {
             // @todo change
-            block_data: vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize],
+            block_data: RefCell::new(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]),
             max_size: DEFAULT_DATA_BLOCK_SIZE,
             current_pos: 0,
             meta: Metadata::new(),
         }
-    }
-
-    pub fn data(&self) -> &[u8] {
-        &self.block_data
     }
 
     pub fn empty(&self) -> bool {
@@ -99,7 +96,7 @@ impl DataBlock {
             return Ok(0);
         }
 
-        let dst = self.block_data.as_mut_slice();
+        let mut dst = self.block_data.borrow_mut();
         let entry_bytes = entry.serialize_to(&mut dst[self.current_pos..])? as usize;
 
         assert_eq!(block_entry_size(entry), entry_bytes);
@@ -110,24 +107,27 @@ impl DataBlock {
         Ok(entry_bytes)
     }
 
-    // @todo move to metadata and trait
-    pub fn write_to(&mut self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
-        let dst = self.block_data.as_mut_slice();
-        let offset = self.max_size - size_of::<u32>();
-        write_u32(&mut dst[offset..], self.meta.count_entries)?;
-
-        ptr.as_mut().write(&self.block_data)?;
-
-        Ok(())
-    }
-
     pub fn reset(&mut self) {
-        self.block_data.clear();
-        self.block_data = vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize];
+        let mut old = self
+            .block_data
+            .replace(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]);
+        old.clear();
 
         self.current_pos = 0;
 
         self.meta.reset();
+    }
+}
+
+impl block::WriteToTable for DataBlock {
+    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+        let mut dst = self.block_data.borrow_mut();
+        let offset = self.max_size - size_of::<u32>();
+        write_u32(&mut dst[offset..], self.meta.count_entries)?;
+
+        ptr.write(dst.as_slice())?;
+
+        Ok(())
     }
 }
 

@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use super::block::WriteToTable;
 use super::data_block::DataBlock;
 use super::meta_block::{IndexBlock, IndexBlocks, Offset};
 use super::reader_disk_table::{ReaderFlexibleDiskTable, ReaderFlexibleDiskTablePtr};
@@ -99,19 +100,19 @@ impl DiskTableBuilder {
     }
 
     pub fn build(&mut self) -> Result<ReaderFlexibleDiskTablePtr> {
-        let Some(ptr) = &mut self.building_disk_table else {
+        let Some(disk_table) = &mut self.building_disk_table else {
             assert!(self.data_block.is_none());
             return Ok(ReaderFlexibleDiskTable::new(self.disk_table_path.as_path()));
         };
 
         if let Some(data_block) = &mut self.data_block {
-            if let Err(er) = data_block.write_to(ptr) {
+            if let Err(er) = data_block.write_to(disk_table) {
                 panic!("Failed write last data block in builder: {}", er)
             }
             data_block.reset();
         };
 
-        self.index_blocks.write_to(ptr)?;
+        self.index_blocks.write_to(disk_table)?;
 
         // write index_entries
         for offset in &self.index_entries {
@@ -125,11 +126,11 @@ impl DiskTableBuilder {
                 offset.size,
             )?;
 
-            ptr.write(&tmp)?;
+            disk_table.write(&tmp)?;
         }
 
         // write index_entries size
-        ptr.write(&(self.index_entries.len() as u32).to_le_bytes())?;
+        disk_table.write(&(self.index_entries.len() as u32).to_le_bytes())?;
 
         let Some(mut writer) = self.building_disk_table.take() else {
             panic!("Broken building_disk_table")
