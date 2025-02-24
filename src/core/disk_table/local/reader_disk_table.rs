@@ -60,38 +60,7 @@ impl ReaderFlexibleDiskTable {
         let base = (meta_block::INDEX_ENTRIES_COUNT_SIZE
             + count_entries as usize * meta_block::INDEX_ENTRIES_SIZE) as i64;
 
-        // read index blocks
-        // @todo reuse offset instead seek
-
-        // read count
-        let _offset = fd.seek(SeekFrom::End(
-            -(base + meta_block::INDEX_BLOCKS_COUNT_SIZE as i64),
-        ));
-        let mut buffer = [0u8; meta_block::INDEX_BLOCKS_COUNT_SIZE];
-        let Ok(bytes) = fd.read(&mut buffer) else {
-            panic!("Failed read count index blocks from disk")
-        };
-        assert_eq!(bytes, meta_block::INDEX_BLOCKS_COUNT_SIZE);
-
-        let count_blocks = u32::from_le_bytes(buffer);
-
-        // read count
-        let _offset = fd.seek(SeekFrom::End(
-            -(base
-                + meta_block::INDEX_BLOCKS_COUNT_SIZE as i64
-                + meta_block::INDEX_BLOCKS_BASE as i64),
-        ));
-        let mut buffer = [0u8; meta_block::INDEX_BLOCKS_BASE];
-        let Ok(bytes) = fd.read(&mut buffer) else {
-            panic!("Failed read size of index blocks from disk")
-        };
-        assert_eq!(bytes, meta_block::INDEX_BLOCKS_BASE);
-        let size_blocks = u32::from_le_bytes(buffer);
-
-        let offset_index_blocks = base
-            + (meta_block::INDEX_BLOCKS_COUNT_SIZE
-                + meta_block::INDEX_BLOCKS_BASE
-                + size_blocks as usize) as i64;
+        let (offset_index_blocks, count_blocks) = meta_block::metadata_index_blocks(base, &mut fd);
 
         let Ok(index_blocks) =
             ReaderFlexibleDiskTable::read_index_blocks(&mut fd, offset_index_blocks, count_blocks)

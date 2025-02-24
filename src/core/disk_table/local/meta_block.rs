@@ -1,5 +1,5 @@
-use std::fs;
-use std::io::Read;
+use std::io::{Read, SeekFrom};
+use std::{fs, io::Seek};
 
 use crate::core::{
     field::{Field, FlexibleField},
@@ -28,6 +28,33 @@ pub(super) const INDEX_ENTRIES_COUNT_SIZE: usize = size_of::<u32>();
 pub struct Offset {
     pub pos: u32,
     pub size: u32,
+}
+
+pub fn metadata_index_blocks(base: i64, fd: &mut fs::File) -> (i64, u32) {
+    let _offset = fd.seek(SeekFrom::End(-(base + INDEX_BLOCKS_COUNT_SIZE as i64)));
+    let mut buffer = [0u8; INDEX_BLOCKS_COUNT_SIZE];
+    let Ok(bytes) = fd.read(&mut buffer) else {
+        panic!("Failed read count index blocks from disk")
+    };
+    assert_eq!(bytes, INDEX_BLOCKS_COUNT_SIZE);
+
+    let count_blocks = u32::from_le_bytes(buffer);
+
+    // read count
+    let _offset = fd.seek(SeekFrom::End(
+        -(base + INDEX_BLOCKS_COUNT_SIZE as i64 + INDEX_BLOCKS_BASE as i64),
+    ));
+    let mut buffer = [0u8; INDEX_BLOCKS_BASE];
+    let Ok(bytes) = fd.read(&mut buffer) else {
+        panic!("Failed read size of index blocks from disk")
+    };
+    assert_eq!(bytes, INDEX_BLOCKS_BASE);
+    let size_blocks = u32::from_le_bytes(buffer);
+
+    let offset_index_blocks =
+        base + (INDEX_BLOCKS_COUNT_SIZE + INDEX_BLOCKS_BASE + size_blocks as usize) as i64;
+
+    (offset_index_blocks, count_blocks)
 }
 
 pub struct IndexBlocks {
