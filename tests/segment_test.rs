@@ -2,11 +2,17 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
+use kvs::core::storage::ordered_storage::OrderedStorage;
+use kvs::core::storage::storage::Storage;
+use tempfile::Builder;
+
 use kvs::core::disk_table::disk_table::get_disk_table_name;
 use kvs::core::disk_table::id::DiskTableID;
 use kvs::core::disk_table::local::disk_table_builder::DiskTableBuilder;
 use kvs::core::entry::flexible_entry::FlexibleEntry;
 use kvs::core::field::FlexibleField;
+use kvs::core::storage::config::StorageConfig;
 
 #[test]
 fn simple_flexible_segment() -> io::Result<()> {
@@ -58,6 +64,48 @@ fn simple_flexible_segment() -> io::Result<()> {
         let expected = FlexibleField::new((index + 10).to_le_bytes().to_vec());
         assert_eq!(actual, expected);
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_get_from_some_data_blocks() -> io::Result<()> {
+    let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+    let table_path = tmp_dir.path().join("test_get_from_some_data_blocks");
+
+    let mut config = StorageConfig::default_config();
+
+    config.mem_table_size = 3;
+    config.data_block_size = 64;
+
+    let mut table = OrderedStorage::new(table_path, config.clone());
+
+    for index in 0..9 as u8 {
+        let entry = FlexibleEntry::new(
+            FlexibleField::new(vec![index, index, index]),
+            FlexibleField::new(vec![index * 10, index * 10, index * 10]),
+        );
+        table.put(entry).unwrap();
+    }
+
+    for index in 0..9 as u8 {
+        let result = table
+            .get(&FlexibleField::new(vec![index, index, index]))
+            .unwrap();
+        assert_eq!(
+            result.unwrap(),
+            FlexibleField::new(vec![index * 10, index * 10, index * 10])
+        );
+    }
+
+    let result = table.get(&FlexibleField::new(vec![1, 1, 10])).unwrap();
+    assert_eq!(result, None);
+
+    let result = table.get(&FlexibleField::new(vec![10, 1, 1])).unwrap();
+    assert_eq!(result, None);
+
+    let result = table.get(&FlexibleField::new(vec![2])).unwrap();
+    assert_eq!(result, None);
 
     Ok(())
 }

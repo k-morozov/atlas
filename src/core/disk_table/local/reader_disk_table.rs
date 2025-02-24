@@ -140,11 +140,16 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskT
 
 impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTable {
     fn read(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        for i in 0..self.index_blocks.len() {
-            let index = self.index_blocks.get_by_index(i);
+        let mut left = 0;
+        let mut right = self.index_blocks.len();
+
+        while left < right {
+            let mid = (left + right) / 2;
+            let index = self.index_blocks.get_by_index(mid);
+
             match index.key.cmp(key) {
                 std::cmp::Ordering::Less => {
-                    if i + 1 == self.index_blocks.len() {
+                    if left + 1 == right {
                         let block = data_block::ReadDataBlock::new(
                             &mut self.fd.borrow_mut(),
                             index.block_offset,
@@ -152,7 +157,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                         );
                         return Ok(block.get(key));
                     }
-                    continue;
+                    left = mid;
                 }
                 std::cmp::Ordering::Equal => {
                     let block = data_block::ReadDataBlock::new(
@@ -163,57 +168,12 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                     return Ok(block.get(key));
                 }
                 std::cmp::Ordering::Greater => {
-                    if i == 0 {
-                        return Ok(None);
-                    }
-                    assert_ne!(i, 0);
-                    let index = self.index_blocks.get_by_index(i - 1);
-                    let block = data_block::ReadDataBlock::new(
-                        &mut self.fd.borrow_mut(),
-                        index.block_offset,
-                        index.block_size,
-                    );
-                    return Ok(block.get(key));
+                    right = mid;
                 }
             }
         }
+
         Ok(None)
-
-        // let mut left = 0;
-        // let mut right = self.index_blocks.len();
-
-        // while left < right {
-        //     let mid = (left + right) / 2;
-        //     let index = self.index_blocks.get_by_index(mid);
-
-        //     match index.key.cmp(key) {
-        //         std::cmp::Ordering::Less => {
-        //             if left + 1 == right {
-        //                 let block = data_block::ReadDataBlock::new(
-        //                     &mut self.fd.borrow_mut(),
-        //                     index.block_offset,
-        //                     index.block_size,
-        //                 );
-        //                 return Ok(block.get(key));
-        //             }
-        //             left = mid + 1;
-        //         },
-        //         std::cmp::Ordering::Equal => {
-        //             let block = data_block::ReadDataBlock::new(
-        //                 &mut self.fd.borrow_mut(),
-        //                 index.block_offset,
-        //                 index.block_size,
-        //             );
-        //             return Ok(block.get(key));
-        //         }
-        //         std::cmp::Ordering::Greater => {
-
-        //             right = mid;
-        //         }
-        //     }
-        // }
-
-        // Ok(None)
     }
 
     fn read_entry_by_index(&self, index: u32) -> Result<Option<FlexibleEntry>> {

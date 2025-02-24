@@ -29,7 +29,10 @@ fn main() {
     info!("start example");
 
     let table_name = "/tmp/kvs/examples/example_table";
-    let config = StorageConfig::new_config(256, 16);
+    let mut config = StorageConfig::default_config();
+    config.mem_table_size = 256;
+    config.disk_tables_limit_by_level = 16;
+
     let mut table = OrderedStorage::new(table_name, config);
 
     let mut expected = Vec::with_capacity(TOTAL_VALUE);

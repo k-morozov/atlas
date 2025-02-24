@@ -12,10 +12,10 @@ use crate::core::{
 use crate::core::disk_table::utils::{
     LevelsReaderDiskTables, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL,
 };
-use crate::core::storage::config::DEFAULT_SEGMENTS_LIMIT;
+use crate::core::storage::config;
 
 pub fn is_ready_to_merge(table: &LevelsReaderDiskTables) -> bool {
-    table[&SEGMENTS_MIN_LEVEL].len() == DEFAULT_SEGMENTS_LIMIT
+    table[&SEGMENTS_MIN_LEVEL].len() == config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL
 }
 
 pub fn merge_disk_tables(
@@ -29,7 +29,7 @@ pub fn merge_disk_tables(
         // @todo
         match storages.get(&merging_level) {
             Some(segments_by_level) => {
-                if segments_by_level.len() != DEFAULT_SEGMENTS_LIMIT {
+                if segments_by_level.len() != config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL {
                     continue;
                 }
             }
