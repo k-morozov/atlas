@@ -158,7 +158,8 @@ mod tests {
         let table_path = tmp_dir.path().join("test_segment");
 
         {
-            let config = StorageConfig::default_config();
+            let mut config = StorageConfig::default_config();
+            config.mem_table_size = 2;
             let mut table = OrderedStorage::new(table_path, config.clone());
 
             for index in 0..=config.mem_table_size as u8 {

@@ -63,7 +63,7 @@ impl DiskTableBuilder {
 
                     match &mut self.building_disk_table {
                         Some(ptr) => {
-                            if let Err(er) = ptr.write(data_block.data()) {
+                            if let Err(er) = data_block.write_to(ptr) {
                                 panic!("Failed write data block in builder: {}", er)
                             }
                         }
@@ -100,11 +100,12 @@ impl DiskTableBuilder {
 
     pub fn build(&mut self) -> Result<ReaderFlexibleDiskTablePtr> {
         let Some(ptr) = &mut self.building_disk_table else {
+            assert!(self.data_block.is_none());
             return Ok(ReaderFlexibleDiskTable::new(self.disk_table_path.as_path()));
         };
 
         if let Some(data_block) = &mut self.data_block {
-            if let Err(er) = ptr.write(data_block.data()) {
+            if let Err(er) = data_block.write_to(ptr) {
                 panic!("Failed write last data block in builder: {}", er)
             }
             data_block.reset();
@@ -130,10 +131,12 @@ impl DiskTableBuilder {
         // write index_entries size
         ptr.write(&(self.index_entries.len() as u32).to_le_bytes())?;
 
-        if let Some(mut writer) = self.building_disk_table.take() {
-            if let Err(er) = writer.flush() {
-                panic!("Failed flush in builder: {}", er)
-            }
+        let Some(mut writer) = self.building_disk_table.take() else {
+            panic!("Broken building_disk_table")
+        };
+
+        if let Err(er) = writer.flush() {
+            panic!("Failed flush in builder: {}", er)
         }
 
         Ok(ReaderFlexibleDiskTable::new(self.disk_table_path.as_path()))

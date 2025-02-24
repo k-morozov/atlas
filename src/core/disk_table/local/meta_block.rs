@@ -82,6 +82,10 @@ impl IndexBlocks {
         result
     }
 
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
     pub fn append(&mut self, index_to_block: IndexBlock) {
         self.data.push(index_to_block);
     }
@@ -97,6 +101,11 @@ impl IndexBlocks {
         assert_ne!(0, self.data.len());
 
         Ok(())
+    }
+
+    // @todo []
+    pub fn get_by_index(&self, index: usize) -> &IndexBlock {
+        &self.data[index]
     }
 }
 
