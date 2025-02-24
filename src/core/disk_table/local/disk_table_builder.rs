@@ -1,20 +1,21 @@
 use std::path::{Path, PathBuf};
 
-use super::block::DataBlock;
-use super::offset::Offset;
+use super::data_block::DataBlock;
+use super::meta_block::{IndexBlock, IndexBlocks, Offset};
 use super::reader_disk_table::{ReaderFlexibleDiskTable, ReaderFlexibleDiskTablePtr};
 use super::writer_disk_table::{WriterFlexibleDiskTable, WriterFlexibleDiskTablePtr};
-use crate::core::disk_table::local::block;
+use crate::core::disk_table::local::meta_block::index_blocks_sizes;
+use crate::core::disk_table::local::{data_block, meta_block};
 use crate::core::entry::flexible_entry::FlexibleEntry;
+use crate::core::field::FieldSize;
 use crate::core::marshal::write_u32;
-use crate::core::storage::config;
 use crate::errors::Result;
 
 pub struct DiskTableBuilder {
     disk_table_path: PathBuf,
     building_disk_table: Option<WriterFlexibleDiskTablePtr>,
     index_entries: Vec<Offset>,
-    index_blocks: Vec<Offset>,
+    index_blocks: IndexBlocks,
     offset: u32,
 
     data_block: Option<DataBlock>,
@@ -26,7 +27,7 @@ impl DiskTableBuilder {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             building_disk_table: Some(WriterFlexibleDiskTable::new(disk_table_path)),
             index_entries: Vec::<Offset>::new(),
-            index_blocks: Vec::<Offset>::new(),
+            index_blocks: IndexBlocks::new(),
             offset: 0,
             data_block: Some(DataBlock::new()),
         }
@@ -37,14 +38,14 @@ impl DiskTableBuilder {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             building_disk_table: None,
             index_entries: Vec::<Offset>::new(),
-            index_blocks: Vec::<Offset>::new(),
+            index_blocks: IndexBlocks::new(),
             offset: 0,
             data_block: None,
         }
     }
 
     pub fn append_entry(&mut self, entry: &FlexibleEntry) -> &mut Self {
-        let esstimate_entry_size = block::ENTRY_METADATA_OFFSET as usize + entry.size();
+        let esstimate_entry_size = data_block::ENTRY_METADATA_OFFSET as usize + entry.size();
 
         let Some(data_block) = &mut self.data_block else {
             panic!("Logic error")
@@ -74,9 +75,11 @@ impl DiskTableBuilder {
                 }
                 Ok(bytes) => {
                     if is_block_empty {
-                        self.index_blocks.push(Offset {
-                            pos: self.offset,
-                            size: data_block.max_size() as u32,
+                        self.index_blocks.push(IndexBlock {
+                            block_offset: self.offset,
+                            block_size: data_block.max_size() as u32,
+                            key_size: entry.get_key().size() as u32,
+                            key: entry.get_key().clone(),
                         });
                     }
                     self.index_entries.push(Offset {
@@ -110,28 +113,27 @@ impl DiskTableBuilder {
 
         // write index_blocks
         for index_block in &self.index_blocks {
-            let mut tmp = [0; block::INDEX_BLOCKS_OFFSET_SIZE];
-            write_u32(&mut tmp[0..block::INDEX_BLOCK_OFFSET], index_block.pos)?;
-            write_u32(&mut tmp[block::INDEX_BLOCK_OFFSET..], index_block.size)?;
-
-            // assert_ne!(0, index_block.size);
-            assert_eq!(
-                index_block.size,
-                config::DEFAULT_DATA_BLOCK_SIZE as u32
-            );
-
-            ptr.write(&tmp)?;
+            index_block.write_to(ptr)?;
         }
 
         // write index_blocks size
+        ptr.write(&(index_blocks_sizes(&self.index_blocks)).to_le_bytes())?;
+
+        // write index_blocks count
         ptr.write(&(self.index_blocks.len() as u32).to_le_bytes())?;
         assert_ne!(0, self.index_blocks.len());
 
         // write index_entries
         for offset in &self.index_entries {
-            let mut tmp = [0; block::INDEX_ENTRIES_SIZE];
-            write_u32(&mut tmp[0..block::INDEX_ENTRIES_OFFSET_SIZE], offset.pos)?;
-            write_u32(&mut tmp[block::INDEX_ENTRIES_OFFSET_SIZE..], offset.size)?;
+            let mut tmp = [0; meta_block::INDEX_ENTRIES_SIZE];
+            write_u32(
+                &mut tmp[0..meta_block::INDEX_ENTRIES_OFFSET_SIZE],
+                offset.pos,
+            )?;
+            write_u32(
+                &mut tmp[meta_block::INDEX_ENTRIES_OFFSET_SIZE..],
+                offset.size,
+            )?;
 
             ptr.write(&tmp)?;
         }

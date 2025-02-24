@@ -1,4 +1,4 @@
-use crate::core::disk_table::local::block;
+use crate::core::disk_table::local::data_block;
 use crate::core::field::{Field, FieldSize};
 use crate::core::marshal::{write_data, write_u32};
 use crate::errors::Result;
@@ -42,7 +42,7 @@ where
 
         // write size of value
         offset += write_u32(&mut buffer[offset..offset + size_of::<u32>()], v_bytes)?;
-        assert_eq!(offset as u32, block::ENTRY_METADATA_OFFSET);
+        assert_eq!(offset as u32, data_block::ENTRY_METADATA_OFFSET);
 
         // write key
         offset += write_data(

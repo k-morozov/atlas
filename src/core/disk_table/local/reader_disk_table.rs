@@ -3,17 +3,18 @@ use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use crate::core::disk_table::local::block;
+use crate::core::disk_table::local::meta_block::IndexBlock;
+use crate::core::disk_table::local::{data_block, meta_block};
 use crate::core::marshal::read_u32;
 use crate::core::storage::config;
 use crate::core::{
-    disk_table::{disk_table, local::offset::Offset},
+    disk_table::{disk_table, local::meta_block::Offset},
     entry::flexible_entry::FlexibleEntry,
     field::FlexibleField,
 };
 use crate::errors::Result;
 
-use super::offset::Offsets;
+use super::meta_block::{IndexBlocks, Offsets};
 
 pub type ReaderFlexibleDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, FlexibleField>;
 
@@ -22,7 +23,7 @@ pub struct ReaderFlexibleDiskTable {
     fd: RefCell<fs::File>,
     count_entries: u32,
     entries_offsets: Offsets,
-    blocks_offsets: Offsets,
+    index_blocks: IndexBlocks,
 }
 
 impl ReaderFlexibleDiskTable {
@@ -37,13 +38,15 @@ impl ReaderFlexibleDiskTable {
         };
 
         // read entries offsets
-        let _offset = fd.seek(SeekFrom::End(-(block::INDEX_ENTRIES_COUNT_SIZE as i64)));
+        let _offset = fd.seek(SeekFrom::End(
+            -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
+        ));
 
-        let mut buffer = [0u8; block::INDEX_ENTRIES_COUNT_SIZE];
+        let mut buffer = [0u8; meta_block::INDEX_ENTRIES_COUNT_SIZE];
         let Ok(bytes) = fd.read(&mut buffer) else {
             panic!("Failed read from disk")
         };
-        assert_eq!(bytes, block::INDEX_ENTRIES_COUNT_SIZE);
+        assert_eq!(bytes, meta_block::INDEX_ENTRIES_COUNT_SIZE);
 
         let count_entries = u32::from_le_bytes(buffer);
         let Ok(entries_offsets) =
@@ -55,26 +58,43 @@ impl ReaderFlexibleDiskTable {
             )
         };
 
-        let base = (block::INDEX_ENTRIES_COUNT_SIZE
-            + count_entries as usize * block::INDEX_ENTRIES_SIZE) as i64;
+        let base = (meta_block::INDEX_ENTRIES_COUNT_SIZE
+            + count_entries as usize * meta_block::INDEX_ENTRIES_SIZE) as i64;
 
         // read index blocks
         // @todo reuse offset instead seek
+
+        // read count
         let _offset = fd.seek(SeekFrom::End(
-            -(base + block::INDEX_BLOCKS_COUNT_SIZE as i64),
+            -(base + meta_block::INDEX_BLOCKS_COUNT_SIZE as i64),
         ));
-        let mut buffer = [0u8; block::INDEX_BLOCKS_COUNT_SIZE];
+        let mut buffer = [0u8; meta_block::INDEX_BLOCKS_COUNT_SIZE];
+        let Ok(bytes) = fd.read(&mut buffer) else {
+            panic!("Failed read count index blocks from disk")
+        };
+        assert_eq!(bytes, meta_block::INDEX_BLOCKS_COUNT_SIZE);
+
+        let count_blocks = u32::from_le_bytes(buffer);
+
+        // read count
+        let _offset = fd.seek(SeekFrom::End(
+            -(base
+                + meta_block::INDEX_BLOCKS_COUNT_SIZE as i64
+                + meta_block::INDEX_BLOCKS_BASE as i64),
+        ));
+        let mut buffer = [0u8; meta_block::INDEX_BLOCKS_BASE];
         let Ok(bytes) = fd.read(&mut buffer) else {
             panic!("Failed read size of index blocks from disk")
         };
-        assert_eq!(bytes, block::INDEX_BLOCKS_COUNT_SIZE);
+        assert_eq!(bytes, meta_block::INDEX_BLOCKS_BASE);
+        let size_blocks = u32::from_le_bytes(buffer);
 
-        let count_blocks = u32::from_le_bytes(buffer);
         let offset_index_blocks = base
-            + (block::INDEX_BLOCKS_COUNT_SIZE
-                + count_blocks as usize * block::INDEX_BLOCKS_OFFSET_SIZE) as i64;
+            + (meta_block::INDEX_BLOCKS_COUNT_SIZE
+                + meta_block::INDEX_BLOCKS_BASE
+                + size_blocks as usize) as i64;
 
-        let Ok(blocks_offsets) =
+        let Ok(index_blocks) =
             ReaderFlexibleDiskTable::read_index_blocks(&mut fd, offset_index_blocks, count_blocks)
         else {
             panic!(
@@ -88,26 +108,26 @@ impl ReaderFlexibleDiskTable {
             fd: RefCell::new(fd),
             count_entries,
             entries_offsets,
-            blocks_offsets,
+            index_blocks,
         })
     }
 
     fn read_index_entries(fd: &mut fs::File, count_entries: u32) -> Result<Offsets> {
         let _offset = fd.seek(SeekFrom::End(
-            -(block::INDEX_ENTRIES_COUNT_SIZE as i64
-                + count_entries as i64 * block::INDEX_ENTRIES_SIZE as i64),
+            -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64
+                + count_entries as i64 * meta_block::INDEX_ENTRIES_SIZE as i64),
         ))?;
 
         let mut index_entries = Offsets::new();
         index_entries.reserve(count_entries as usize);
 
         for _entry_offset in 0..count_entries {
-            let mut buffer = [0u8; block::INDEX_ENTRIES_SIZE];
+            let mut buffer = [0u8; meta_block::INDEX_ENTRIES_SIZE];
 
             let bytes = fd.read(&mut buffer)?;
-            assert_eq!(bytes, block::INDEX_ENTRIES_SIZE);
-            let entry_offset = read_u32(&buffer[..block::INDEX_ENTRIES_OFFSET_SIZE])?;
-            let entry_size = read_u32(&buffer[block::INDEX_ENTRIES_OFFSET_SIZE..])?;
+            assert_eq!(bytes, meta_block::INDEX_ENTRIES_SIZE);
+            let entry_offset = read_u32(&buffer[..meta_block::INDEX_ENTRIES_OFFSET_SIZE])?;
+            let entry_size = read_u32(&buffer[meta_block::INDEX_ENTRIES_OFFSET_SIZE..])?;
 
             assert_ne!(entry_size, 0);
 
@@ -124,26 +144,14 @@ impl ReaderFlexibleDiskTable {
         fd: &mut fs::File,
         start_offset: i64,
         count_blocks: u32,
-    ) -> Result<Offsets> {
+    ) -> Result<IndexBlocks> {
         let _offset = fd.seek(SeekFrom::End(-(start_offset)))?;
 
-        let mut index_blocks = Offsets::new();
+        let mut index_blocks = IndexBlocks::new();
         index_blocks.reserve(count_blocks as usize);
 
-        for _block_offset in 0..count_blocks {
-            let mut buffer = [0u8; block::INDEX_BLOCKS_OFFSET_SIZE];
-
-            let bytes = fd.read(&mut buffer)?;
-            assert_eq!(bytes, block::INDEX_BLOCKS_OFFSET_SIZE);
-            let block_offset = read_u32(&buffer[..block::INDEX_BLOCK_OFFSET])?;
-            let block_size = read_u32(&buffer[block::INDEX_BLOCK_OFFSET..])?;
-
-            assert_eq!(block_size, config::DEFAULT_DATA_BLOCK_SIZE as u32);
-
-            index_blocks.push(Offset {
-                pos: block_offset,
-                size: block_size,
-            });
+        for _ in 0..count_blocks {
+            index_blocks.push(IndexBlock::from(fd)?);
         }
 
         Ok(index_blocks)
@@ -211,10 +219,10 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
         assert_ne!(value_len, 0);
 
         let (buffer_with_key, buffer_value) =
-            buffer.split_at_mut(block::ENTRY_METADATA_OFFSET as usize + key_len);
+            buffer.split_at_mut(data_block::ENTRY_METADATA_OFFSET as usize + key_len);
 
-        let key_buffer = &mut buffer_with_key[block::ENTRY_METADATA_OFFSET as usize
-            ..block::ENTRY_METADATA_OFFSET as usize + key_len];
+        let key_buffer = &mut buffer_with_key[data_block::ENTRY_METADATA_OFFSET as usize
+            ..data_block::ENTRY_METADATA_OFFSET as usize + key_len];
         let value_buffer = &mut buffer_value[..];
 
         return Ok(Some(FlexibleEntry::new(
