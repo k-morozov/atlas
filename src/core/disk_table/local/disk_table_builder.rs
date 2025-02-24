@@ -4,7 +4,6 @@ use super::data_block::DataBlock;
 use super::meta_block::{IndexBlock, IndexBlocks, Offset};
 use super::reader_disk_table::{ReaderFlexibleDiskTable, ReaderFlexibleDiskTablePtr};
 use super::writer_disk_table::{WriterFlexibleDiskTable, WriterFlexibleDiskTablePtr};
-use crate::core::disk_table::local::meta_block::index_blocks_sizes;
 use crate::core::disk_table::local::{data_block, meta_block};
 use crate::core::entry::flexible_entry::FlexibleEntry;
 use crate::core::field::FieldSize;
@@ -75,7 +74,7 @@ impl DiskTableBuilder {
                 }
                 Ok(bytes) => {
                     if is_block_empty {
-                        self.index_blocks.push(IndexBlock {
+                        self.index_blocks.append(IndexBlock {
                             block_offset: self.offset,
                             block_size: data_block.max_size() as u32,
                             key_size: entry.get_key().size() as u32,
@@ -111,17 +110,7 @@ impl DiskTableBuilder {
             data_block.reset();
         };
 
-        // write index_blocks
-        for index_block in &self.index_blocks {
-            index_block.write_to(ptr)?;
-        }
-
-        // write index_blocks size
-        ptr.write(&(index_blocks_sizes(&self.index_blocks)).to_le_bytes())?;
-
-        // write index_blocks count
-        ptr.write(&(self.index_blocks.len() as u32).to_le_bytes())?;
-        assert_ne!(0, self.index_blocks.len());
+        self.index_blocks.write_to(ptr)?;
 
         // write index_entries
         for offset in &self.index_entries {

@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 use crate::core::disk_table::local::meta_block::IndexBlock;
 use crate::core::disk_table::local::{data_block, meta_block};
 use crate::core::marshal::read_u32;
-use crate::core::storage::config;
 use crate::core::{
     disk_table::{disk_table, local::meta_block::Offset},
     entry::flexible_entry::FlexibleEntry,
@@ -148,10 +147,9 @@ impl ReaderFlexibleDiskTable {
         let _offset = fd.seek(SeekFrom::End(-(start_offset)))?;
 
         let mut index_blocks = IndexBlocks::new();
-        index_blocks.reserve(count_blocks as usize);
 
         for _ in 0..count_blocks {
-            index_blocks.push(IndexBlock::from(fd)?);
+            index_blocks.append(IndexBlock::from(fd)?);
         }
 
         Ok(index_blocks)

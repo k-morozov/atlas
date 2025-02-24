@@ -30,14 +30,41 @@ pub struct Offset {
     pub size: u32,
 }
 
-pub type IndexBlocks = Vec<IndexBlock>;
+pub struct IndexBlocks {
+    data: Vec<IndexBlock>,
+}
 
-pub fn index_blocks_sizes(value: &IndexBlocks) -> u32 {
-    let mut result = 0;
-    for v in value {
-        result += v.size();
+impl IndexBlocks {
+    pub fn new() -> Self {
+        Self {
+            data: Vec::<IndexBlock>::new(),
+        }
     }
-    result
+
+    pub fn size(&self) -> u32 {
+        let mut result = 0;
+        for v in &self.data {
+            result += v.size();
+        }
+        result
+    }
+
+    pub fn append(&mut self, index_to_block: IndexBlock) {
+        self.data.push(index_to_block);
+    }
+
+    pub fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+        for index_block in &self.data {
+            index_block.write_to(ptr)?;
+        }
+
+        ptr.write(&(self.size()).to_le_bytes())?;
+
+        ptr.write(&(self.data.len() as u32).to_le_bytes())?;
+        assert_ne!(0, self.data.len());
+
+        Ok(())
+    }
 }
 
 pub struct IndexBlock {
@@ -80,7 +107,7 @@ impl IndexBlock {
         (3 * size_of::<u32>()) as u32 + self.key_size
     }
 
-    pub fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
         let mut tmp = [0; INDEX_BLOCKS_OFFSET_SIZE];
 
         write_u32(&mut tmp[0..INDEX_BLOCK_OFFSET], self.block_offset)?;
