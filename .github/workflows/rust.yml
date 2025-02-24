@@ -22,3 +22,16 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+
+  example:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Style
+      run: cargo fmt
+    - name: Build example
+      run: cargo build --example example -r
+    - name: Run example
+      run: cargo run --example example
