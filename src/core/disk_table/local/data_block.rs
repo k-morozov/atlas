@@ -30,33 +30,34 @@ pub struct DataBlock {
 
 struct Metadata {
     count_entries: u32,
-    offsets: Vec<u32>,
 }
 
 impl Metadata {
     fn new() -> Self {
         Self {
             count_entries: 0,
-            offsets: Vec::new(),
         }
     }
 
     fn size(&self) -> usize {
-        size_of::<u32>() + size_of::<u32>() * self.offsets.len()
+        size_of::<u32>()
     }
 
     fn size_with_entry(&self) -> usize {
         self.size() + size_of::<u32>()
     }
 
-    fn append(&mut self, offset: u32) {
-        self.offsets.push(offset);
+    fn append(&mut self, _offset: u32) {
         self.count_entries += 1;
     }
 
     fn reset(&mut self) {
         self.count_entries = 0;
-        self.offsets.clear();
+    }
+
+    fn serialize_to(&self, buffer: &mut [u8]) -> Result<()> {
+        write_u32(buffer, self.count_entries)?;
+        Ok(())
     }
 }
 
@@ -121,10 +122,10 @@ impl DataBlock {
 
 impl block::WriteToTable for DataBlock {
     fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
-        let mut dst = self.block_data.borrow_mut();
-        let offset = self.max_size - size_of::<u32>();
-        write_u32(&mut dst[offset..], self.meta.count_entries)?;
+        let offset = self.max_size - self.meta.size();
 
+        let mut dst = self.block_data.borrow_mut();
+        self.meta.serialize_to(&mut dst[offset..])?;
         ptr.write(dst.as_slice())?;
 
         Ok(())
@@ -181,11 +182,11 @@ impl ReadDataBlock {
     }
 
     pub fn get(&self, key: &FlexibleField) -> Option<FlexibleField> {
-        for entry in &self.data {
-            if entry.get_key() == key {
-                return Some(entry.get_value().clone());
-            }
-        }
-        None
+        let idx = self
+            .data
+            .binary_search_by(|entry| entry.get_key().cmp(key))
+            .ok()?;
+
+        Some(self.data[idx].get_value().clone())
     }
 }
