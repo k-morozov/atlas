@@ -3,21 +3,14 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::core::{
-    disk_table::{disk_table, local::offset::Offset},
-    entry::flexible_entry::FlexibleEntry,
-    field::{FieldSize, FlexibleField},
-};
+use crate::core::{disk_table::disk_table, field::FlexibleField};
 use crate::errors::Result;
 
 pub type WriterFlexibleDiskTablePtr = disk_table::WriterDiskTablePtr<FlexibleField, FlexibleField>;
 
 pub struct WriterFlexibleDiskTable {
     disk_table_path: PathBuf,
-
     buf: Option<io::BufWriter<fs::File>>,
-    entries_offsets: Vec<(Offset, Offset)>,
-    segment_offset: u32,
 }
 
 impl WriterFlexibleDiskTable {
@@ -47,8 +40,6 @@ impl WriterFlexibleDiskTable {
         Box::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             buf: Some(io::BufWriter::new(fd)),
-            entries_offsets: Vec::<(Offset, Offset)>::new(),
-            segment_offset: 0,
         })
     }
 }
@@ -67,57 +58,24 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskT
 }
 
 impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
-    fn write(&mut self, entry: FlexibleEntry) -> Result<()> {
-        let key_offset = self.segment_offset;
-        self.segment_offset += entry.get_key().size() as u32;
-        let value_offset = self.segment_offset;
-        self.segment_offset += entry.get_value().size() as u32;
-
-        self.entries_offsets.push((
-            Offset {
-                start: key_offset,
-                len: entry.get_key().size() as u32,
-            },
-            Offset {
-                start: value_offset,
-                len: entry.get_value().size() as u32,
-            },
-        ));
-
+    fn write(&mut self, buffer: &[u8]) -> Result<()> {
         match &mut self.buf {
             Some(buf) => {
-                buf.write(&entry.get_key().data)?;
-                buf.write(&entry.get_value().data)?;
+                buf.write(buffer)?;
             }
-            None => {
-                panic!("broken buffer")
-            }
+            None => panic!("broken buffer"),
         }
 
         Ok(())
     }
 
     fn flush(&mut self) -> Result<()> {
-        let Some(buffer) = &mut self.buf else {
-            panic!("broken buffer")
-        };
-
-        for offsets in &self.entries_offsets {
-            let temp = vec![
-                offsets.0.start,
-                offsets.0.len,
-                offsets.1.start,
-                offsets.1.len,
-            ];
-
-            for offset in temp {
-                let bytes = offset.to_le_bytes();
-                buffer.write(&bytes)?;
+        match &mut self.buf {
+            Some(buffer) => {
+                buffer.flush()?;
             }
+            None => panic!("broken buffer"),
         }
-
-        buffer.write(&(self.entries_offsets.len() as u32).to_le_bytes())?;
-        buffer.flush()?;
 
         let fd = self.buf.take().unwrap().into_inner().unwrap();
         fd.sync_all()?;

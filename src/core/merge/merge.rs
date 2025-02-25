@@ -4,7 +4,7 @@ use crate::core::{
     disk_table::{
         disk_table::{get_disk_table_name_by_level, get_disk_table_path, ReaderDiskTableIterator},
         id::DiskTableID,
-        local::segment_builder::FlexibleSegmentBuilder,
+        local::disk_table_builder::DiskTableBuilder,
     },
     field::FlexibleField,
 };
@@ -12,10 +12,10 @@ use crate::core::{
 use crate::core::disk_table::utils::{
     LevelsReaderDiskTables, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL,
 };
-use crate::core::storage::config::DEFAULT_SEGMENTS_LIMIT;
+use crate::core::storage::config;
 
 pub fn is_ready_to_merge(table: &LevelsReaderDiskTables) -> bool {
-    table[&SEGMENTS_MIN_LEVEL].len() == DEFAULT_SEGMENTS_LIMIT
+    table[&SEGMENTS_MIN_LEVEL].len() == config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL
 }
 
 pub fn merge_disk_tables(
@@ -29,7 +29,7 @@ pub fn merge_disk_tables(
         // @todo
         match storages.get(&merging_level) {
             Some(segments_by_level) => {
-                if segments_by_level.len() != DEFAULT_SEGMENTS_LIMIT {
+                if segments_by_level.len() != config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL {
                     continue;
                 }
             }
@@ -51,7 +51,7 @@ pub fn merge_disk_tables(
             .map(|disk_table| disk_table.into_iter())
             .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
         let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
-        let mut builder = FlexibleSegmentBuilder::new(disk_table_path.as_path());
+        let mut builder = DiskTableBuilder::new(disk_table_path.as_path());
 
         while entries.iter().any(|v| v.is_some()) {
             let (index, entry) = entries
@@ -75,14 +75,16 @@ pub fn merge_disk_tables(
             }
         }
 
-        let merged_segment = builder.build();
+        let Ok(merged_disk_table) = builder.build() else {
+            panic!("Failed create disk table for merge_disk_tables")
+        };
 
-        for merging_segment in storages.get_mut(&merging_level).unwrap() {
-            match merging_segment.remove() {
+        for merging_disk_table in storages.get_mut(&merging_level).unwrap() {
+            match merging_disk_table.remove() {
                 Ok(_) => {}
                 Err(er) => panic!(
-                    "failed remove merged segment: path={}, error={}",
-                    merging_segment.get_path().display(),
+                    "failed remove merged disk table: path={}, error={}",
+                    merging_disk_table.get_path().display(),
                     er,
                 ),
             }
@@ -92,6 +94,6 @@ pub fn merge_disk_tables(
         storages
             .entry(level_for_new_sg)
             .or_insert_with(Vec::new)
-            .push(merged_segment);
+            .push(merged_disk_table);
     }
 }

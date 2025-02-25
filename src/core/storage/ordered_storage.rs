@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use super::storage::Storage;
 use crate::core::disk_table::{
     disk_table::{get_disk_table_name, get_disk_table_path},
-    local::segment_builder::FlexibleSegmentBuilder,
+    local::disk_table_builder::DiskTableBuilder,
     utils::{get_disk_tables, LevelsReaderDiskTables, SEGMENTS_MIN_LEVEL},
 };
 use crate::core::entry::flexible_entry::FlexibleEntry;
@@ -74,7 +74,7 @@ impl OrderedStorage {
             .mem_table
             .into_iter()
             .fold(
-                FlexibleSegmentBuilder::new(disk_table_path.as_path()),
+                DiskTableBuilder::new(disk_table_path.as_path()),
                 |mut builder, entry| {
                     builder.append_entry(entry);
                     builder
@@ -82,10 +82,15 @@ impl OrderedStorage {
             )
             .build();
 
-        self.disk_tables
-            .entry(SEGMENTS_MIN_LEVEL)
-            .or_insert_with(Vec::new)
-            .push(segment_from_mem_table);
+        match segment_from_mem_table {
+            Ok(disk_table) => {
+                self.disk_tables
+                    .entry(SEGMENTS_MIN_LEVEL)
+                    .or_insert_with(Vec::new)
+                    .push(disk_table);
+            }
+            Err(er) => panic!("Failed save_mem_table. {}", er),
+        }
 
         self.mem_table = MemoryTable::new(self.config.mem_table_size);
 
@@ -153,7 +158,8 @@ mod tests {
         let table_path = tmp_dir.path().join("test_segment");
 
         {
-            let config = StorageConfig::default_config();
+            let mut config = StorageConfig::default_config();
+            config.mem_table_size = 2;
             let mut table = OrderedStorage::new(table_path, config.clone());
 
             for index in 0..=config.mem_table_size as u8 {

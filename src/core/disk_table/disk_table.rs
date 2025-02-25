@@ -9,7 +9,7 @@ pub type WriterDiskTablePtr<K, V> = Box<dyn WriterDiskTable<K, V>>;
 pub type ReaderDiskTablePtr<K, V> = Box<dyn ReaderDiskTable<K, V>>;
 
 pub trait Writer<K, V> {
-    fn write(&mut self, entry: Entry<K, V>) -> Result<()>;
+    fn write(&mut self, buffer: &[u8]) -> Result<()>;
     fn flush(&mut self) -> Result<()>;
 }
 
