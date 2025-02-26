@@ -1,7 +1,7 @@
 use log::info;
 use rand::Rng;
 
-use kvs::core::entry::flexible_entry::FlexibleEntry;
+use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
 use kvs::core::field::FlexibleField;
 use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
@@ -41,7 +41,7 @@ fn main() {
         let key = FlexibleField::new(generate_random_bytes(64, 128));
         let value = FlexibleField::new(generate_random_bytes(512, 1024));
 
-        let entry = FlexibleEntry::new(key, value);
+        let entry = FlexibleUserEntry::new(key, value);
         table.put(entry.clone()).unwrap();
 
         expected.push(entry);

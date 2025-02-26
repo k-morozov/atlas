@@ -2,14 +2,14 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use crate::core::disk_table::local::reader_disk_table::ReaderFlexibleDiskTablePtr;
+use crate::core::disk_table::local::reader_local_disk_table::ReaderDiskTablePtr;
 use crate::errors::Result;
 
 use super::disk_table::get_disk_table_path;
-use super::local::disk_table_builder::DiskTableBuilder;
+use super::local::local_disk_table_builder::DiskTableBuilder;
 
 pub type Levels = u8;
-pub type ReaderDiskTables = Vec<ReaderFlexibleDiskTablePtr>;
+pub type ReaderDiskTables = Vec<ReaderDiskTablePtr>;
 pub type LevelsReaderDiskTables = BTreeMap<Levels, ReaderDiskTables>;
 
 pub const SEGMENTS_MIN_LEVEL: Levels = 1;

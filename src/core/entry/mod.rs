@@ -1,2 +1,2 @@
-pub mod entry;
-pub mod flexible_entry;
+pub mod flexible_user_entry;
+pub mod user_entry;

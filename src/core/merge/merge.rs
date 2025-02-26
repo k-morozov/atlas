@@ -4,7 +4,7 @@ use crate::core::{
     disk_table::{
         disk_table::{get_disk_table_name_by_level, get_disk_table_path, ReaderDiskTableIterator},
         id::DiskTableID,
-        local::disk_table_builder::DiskTableBuilder,
+        local::local_disk_table_builder::DiskTableBuilder,
     },
     field::FlexibleField,
 };

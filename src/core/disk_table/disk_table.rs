@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use super::id::DiskTableID;
 use super::utils::Levels;
-use crate::core::entry::entry::Entry;
+use crate::core::entry::user_entry::UserEntry;
 use crate::errors::Result;
 
 pub type WriterDiskTablePtr<K, V> = Box<dyn WriterDiskTable<K, V>>;
@@ -15,7 +15,7 @@ pub trait Writer<K, V> {
 
 pub trait Reader<K, V> {
     fn read(&self, key: &K) -> Result<Option<V>>;
-    fn read_entry_by_index(&self, index: u32) -> Result<Option<Entry<K, V>>>;
+    fn read_entry_by_index(&self, index: u32) -> Result<Option<UserEntry<K, V>>>;
     fn count_entries(&self) -> u32;
 }
 
@@ -53,7 +53,7 @@ pub struct ReaderDiskTableIterator<'a, K, V> {
 }
 
 impl<'a, K, V> Iterator for ReaderDiskTableIterator<'a, K, V> {
-    type Item = Entry<K, V>;
+    type Item = UserEntry<K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index == self.max_index {
@@ -72,7 +72,7 @@ impl<'a, K, V> Iterator for ReaderDiskTableIterator<'a, K, V> {
 }
 
 impl<'a, K, V> IntoIterator for &'a dyn ReaderDiskTable<K, V> {
-    type Item = Entry<K, V>;
+    type Item = UserEntry<K, V>;
     type IntoIter = ReaderDiskTableIterator<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {

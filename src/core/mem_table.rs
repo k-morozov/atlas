@@ -1,11 +1,11 @@
 use std::{collections::BTreeSet, iter::IntoIterator};
 
-use crate::core::entry::flexible_entry::FlexibleEntry;
+use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
 
 use super::field::FlexibleField;
 
 pub struct MemoryTable {
-    entries: BTreeSet<FlexibleEntry>,
+    entries: BTreeSet<FlexibleUserEntry>,
     current_size: usize,
     max_table_size: usize,
 }
@@ -29,7 +29,7 @@ impl MemoryTable {
         self.max_table_size
     }
 
-    pub fn append(&mut self, row: FlexibleEntry) {
+    pub fn append(&mut self, row: FlexibleUserEntry) {
         self.entries.insert(row);
         self.current_size += 1;
     }
@@ -41,7 +41,7 @@ impl MemoryTable {
             .map(|entry| entry.get_value().clone())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &FlexibleEntry> {
+    pub fn iter(&self) -> impl Iterator<Item = &FlexibleUserEntry> {
         self.entries.iter()
     }
 
@@ -52,11 +52,11 @@ impl MemoryTable {
 }
 
 pub struct MemoryTableIterator<'a> {
-    it: Box<dyn Iterator<Item = &'a FlexibleEntry> + 'a>,
+    it: Box<dyn Iterator<Item = &'a FlexibleUserEntry> + 'a>,
 }
 
 impl<'a> Iterator for MemoryTableIterator<'a> {
-    type Item = &'a FlexibleEntry;
+    type Item = &'a FlexibleUserEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.it.next()
@@ -64,7 +64,7 @@ impl<'a> Iterator for MemoryTableIterator<'a> {
 }
 
 impl<'a> IntoIterator for &'a MemoryTable {
-    type Item = &'a FlexibleEntry;
+    type Item = &'a FlexibleUserEntry;
     type IntoIter = MemoryTableIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -76,7 +76,7 @@ impl<'a> IntoIterator for &'a MemoryTable {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::entry::flexible_entry::FlexibleEntry;
+    use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
     use crate::core::field::*;
     use crate::core::mem_table;
     use std::iter::zip;
@@ -92,19 +92,19 @@ mod tests {
     fn check_append() {
         let mut mem_table = mem_table::MemoryTable::new(3);
 
-        let entry1 = FlexibleEntry::new(
+        let entry1 = FlexibleUserEntry::new(
             FlexibleField::new(vec![1, 2, 3]),
             FlexibleField::new(vec![10, 20, 30]),
         );
         mem_table.append(entry1.clone());
 
-        let entry2 = FlexibleEntry::new(
+        let entry2 = FlexibleUserEntry::new(
             FlexibleField::new(vec![2, 3, 4]),
             FlexibleField::new(vec![20, 30, 40]),
         );
         mem_table.append(entry2.clone());
 
-        let entry3 = FlexibleEntry::new(
+        let entry3 = FlexibleUserEntry::new(
             FlexibleField::new(vec![3, 4, 5]),
             FlexibleField::new(vec![30, 40, 50]),
         );
