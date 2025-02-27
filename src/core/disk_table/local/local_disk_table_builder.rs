@@ -1,12 +1,15 @@
 use std::path::{Path, PathBuf};
 
-use super::block::WriteToTable;
-use super::data_block::DataBlock;
-use super::meta_block::{IndexBlock, IndexBlocks, Offset};
-use super::reader_disk_table::{ReaderFlexibleDiskTable, ReaderFlexibleDiskTablePtr};
-use super::writer_disk_table::{WriterFlexibleDiskTable, WriterFlexibleDiskTablePtr};
-use crate::core::disk_table::local::{data_block, meta_block};
-use crate::core::entry::flexible_entry::FlexibleEntry;
+use super::reader_local_disk_table::{ReaderDiskTablePtr, ReaderFlexibleDiskTable};
+use super::writer_local_disk_table::{WriterFlexibleDiskTable, WriterFlexibleDiskTablePtr};
+use crate::core::disk_table::local::block::{
+    block::WriteToTable,
+    data_block_buffer,
+    data_block_buffer::DataBlockBuffer,
+    meta_block,
+    meta_block::{IndexBlock, IndexBlocks, Offset},
+};
+use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
 use crate::core::field::FieldSize;
 use crate::core::marshal::write_u32;
 use crate::errors::Result;
@@ -18,7 +21,7 @@ pub struct DiskTableBuilder {
     index_blocks: IndexBlocks,
     offset: u32,
 
-    data_block: Option<DataBlock>,
+    data_block: Option<DataBlockBuffer>,
 }
 
 impl DiskTableBuilder {
@@ -29,7 +32,7 @@ impl DiskTableBuilder {
             index_entries: Vec::<Offset>::new(),
             index_blocks: IndexBlocks::new(),
             offset: 0,
-            data_block: Some(DataBlock::new()),
+            data_block: Some(DataBlockBuffer::new()),
         }
     }
 
@@ -44,8 +47,8 @@ impl DiskTableBuilder {
         }
     }
 
-    pub fn append_entry(&mut self, entry: &FlexibleEntry) -> &mut Self {
-        let esstimate_entry_size = data_block::ENTRY_METADATA_SIZE as usize + entry.size();
+    pub fn append_entry(&mut self, entry: &FlexibleUserEntry) -> &mut Self {
+        let esstimate_entry_size = data_block_buffer::ENTRY_METADATA_SIZE as usize + entry.size();
 
         let Some(data_block) = &mut self.data_block else {
             panic!("Logic error")
@@ -99,7 +102,7 @@ impl DiskTableBuilder {
         self
     }
 
-    pub fn build(&mut self) -> Result<ReaderFlexibleDiskTablePtr> {
+    pub fn build(&mut self) -> Result<ReaderDiskTablePtr> {
         let Some(disk_table) = &mut self.building_disk_table else {
             assert!(self.data_block.is_none());
             return Ok(ReaderFlexibleDiskTable::new(self.disk_table_path.as_path()));

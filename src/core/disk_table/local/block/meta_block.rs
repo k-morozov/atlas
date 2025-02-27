@@ -7,24 +7,25 @@ use crate::core::{
     storage::config,
 };
 
-use super::block;
-use super::writer_disk_table::WriterFlexibleDiskTablePtr;
+use crate::core::disk_table::local::writer_local_disk_table::WriterFlexibleDiskTablePtr;
 use crate::errors::Result;
+
+use super::block;
 
 pub type Offsets = Vec<Offset>;
 
-pub(super) const INDEX_BLOCK_OFFSET: usize = size_of::<u32>();
-pub(super) const INDEX_BLOCK_SIZE: usize = size_of::<u32>();
-pub(super) const INDEX_BLOCK_KEY_SIZE: usize = size_of::<u32>();
-pub(super) const INDEX_BLOCKS_OFFSET_SIZE: usize =
+pub const INDEX_BLOCK_OFFSET: usize = size_of::<u32>();
+pub const INDEX_BLOCK_SIZE: usize = size_of::<u32>();
+pub const INDEX_BLOCK_KEY_SIZE: usize = size_of::<u32>();
+pub const INDEX_BLOCKS_OFFSET_SIZE: usize =
     INDEX_BLOCK_OFFSET + INDEX_BLOCK_SIZE + INDEX_BLOCK_KEY_SIZE;
-pub(super) const INDEX_BLOCKS_COUNT_SIZE: usize = size_of::<u32>();
-pub(super) const INDEX_BLOCKS_BASE: usize = size_of::<u32>();
+pub const INDEX_BLOCKS_COUNT_SIZE: usize = size_of::<u32>();
+pub const INDEX_BLOCKS_BASE: usize = size_of::<u32>();
 
-pub(super) const INDEX_ENTRIES_OFFSET_SIZE: usize = size_of::<u32>();
-pub(super) const INDEX_ENTRIES_LEN_SIZE: usize = size_of::<u32>();
-pub(super) const INDEX_ENTRIES_SIZE: usize = INDEX_ENTRIES_OFFSET_SIZE + INDEX_ENTRIES_LEN_SIZE;
-pub(super) const INDEX_ENTRIES_COUNT_SIZE: usize = size_of::<u32>();
+pub const INDEX_ENTRIES_OFFSET_SIZE: usize = size_of::<u32>();
+pub const INDEX_ENTRIES_LEN_SIZE: usize = size_of::<u32>();
+pub const INDEX_ENTRIES_SIZE: usize = INDEX_ENTRIES_OFFSET_SIZE + INDEX_ENTRIES_LEN_SIZE;
+pub const INDEX_ENTRIES_COUNT_SIZE: usize = size_of::<u32>();
 
 pub struct Offset {
     pub pos: u32,

@@ -1,19 +1,18 @@
-use crate::core::disk_table::local::data_block;
 use crate::core::field::{Field, FieldSize};
 use crate::core::marshal::{write_data, write_u32};
 use crate::errors::Result;
 use crate::logicerr;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct Entry<K, V>(K, V);
+pub struct UserEntry<K, V>(K, V);
 
-impl<K, V> Entry<K, V>
+impl<K, V> UserEntry<K, V>
 where
     K: Field + FieldSize,
     V: Field + FieldSize,
 {
     pub fn new(key: K, value: V) -> Self {
-        Entry { 0: key, 1: value }
+        UserEntry { 0: key, 1: value }
     }
 
     pub fn get_key(&self) -> &K {
@@ -42,7 +41,6 @@ where
 
         // write size of value
         offset += write_u32(&mut buffer[offset..offset + size_of::<u32>()], v_bytes)?;
-        assert_eq!(offset as u32, data_block::ENTRY_METADATA_SIZE);
 
         // write key
         offset += write_data(

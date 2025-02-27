@@ -9,8 +9,8 @@ use tempfile::Builder;
 
 use kvs::core::disk_table::disk_table::get_disk_table_name;
 use kvs::core::disk_table::id::DiskTableID;
-use kvs::core::disk_table::local::disk_table_builder::DiskTableBuilder;
-use kvs::core::entry::flexible_entry::FlexibleEntry;
+use kvs::core::disk_table::local::local_disk_table_builder::DiskTableBuilder;
+use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
 use kvs::core::field::FlexibleField;
 use kvs::core::storage::config::StorageConfig;
 
@@ -32,12 +32,12 @@ fn simple_flexible_segment() -> io::Result<()> {
         assert_eq!(io::ErrorKind::NotFound, er.kind());
     }
 
-    let mut entries: Vec<FlexibleEntry> = Vec::new();
+    let mut entries: Vec<FlexibleUserEntry> = Vec::new();
 
     const MAX_SIZE: u32 = 6;
 
     for index in (1..MAX_SIZE).step_by(1) {
-        entries.push(FlexibleEntry::new(
+        entries.push(FlexibleUserEntry::new(
             FlexibleField::new(index.to_le_bytes().to_vec()),
             FlexibleField::new((index + 10).to_le_bytes().to_vec()),
         ));
@@ -81,7 +81,7 @@ fn test_get_from_some_data_blocks() -> io::Result<()> {
     let mut table = OrderedStorage::new(table_path, config.clone());
 
     for index in 0..9 as u8 {
-        let entry = FlexibleEntry::new(
+        let entry = FlexibleUserEntry::new(
             FlexibleField::new(vec![index, index, index]),
             FlexibleField::new(vec![index * 10, index * 10, index * 10]),
         );
