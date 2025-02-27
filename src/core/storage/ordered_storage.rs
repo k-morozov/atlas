@@ -12,7 +12,7 @@ use crate::core::field::FlexibleField;
 use crate::core::mem_table::MemoryTable;
 use crate::core::merge::merge::{is_ready_to_merge, merge_disk_tables};
 use crate::core::storage::{
-    config::StorageConfig,
+    config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
     metadata::StorageMetadata,
 };
 use crate::errors::Error;
@@ -102,7 +102,7 @@ impl OrderedStorage {
 
 impl Storage for OrderedStorage {
     fn put(&mut self, entry: FlexibleUserEntry) -> Result<(), Error> {
-        self.mem_table.append(entry);
+        self.mem_table.append(entry.clone());
 
         if self.mem_table.current_size() == self.mem_table.max_table_size() {
             self.save_mem_table();
