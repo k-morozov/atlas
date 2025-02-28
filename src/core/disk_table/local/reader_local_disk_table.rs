@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use crate::core::disk_table::local::block::{data_block, data_block_buffer, meta_block};
 use crate::core::marshal::read_u32;
@@ -14,7 +15,7 @@ pub type ReaderDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, Flex
 
 pub struct ReaderFlexibleDiskTable {
     disk_table_path: PathBuf,
-    fd: RefCell<fs::File>,
+    fd: Mutex<RefCell<fs::File>>,
     count_entries: u32,
     entries_offsets: meta_block::Offsets,
     index_blocks: meta_block::IndexBlocks,
@@ -68,7 +69,7 @@ impl ReaderFlexibleDiskTable {
 
         Box::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
-            fd: RefCell::new(fd),
+            fd: Mutex::new(RefCell::new(fd)),
             count_entries,
             entries_offsets,
             index_blocks,
@@ -166,7 +167,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                 let index_block = self.index_blocks.get_by_index(index);
 
                 let block = data_block::DataBlock::new(
-                    &mut self.fd.borrow_mut(),
+                    &mut self.fd.lock().unwrap().borrow_mut(),
                     index_block.block_offset,
                     index_block.block_size,
                 );
@@ -183,6 +184,8 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
 
         let _offset = self
             .fd
+            .lock()
+            .unwrap()
             .borrow_mut()
             .seek(SeekFrom::Start(offset.pos as u64))?;
 
@@ -190,7 +193,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
 
         // read row with entry
         let mut buffer = vec![0u8; offset.size as usize];
-        let bytes: usize = self.fd.borrow_mut().read(&mut buffer)?;
+        let bytes: usize = self.fd.lock().unwrap().borrow_mut().read(&mut buffer)?;
         assert_eq!(bytes, offset.size as usize);
 
         // parse metadata

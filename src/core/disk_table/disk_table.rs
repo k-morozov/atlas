@@ -25,7 +25,7 @@ pub trait DiskTable<K, V> {
 }
 
 pub trait WriterDiskTable<K, V>: DiskTable<K, V> + Writer<K, V> {}
-pub trait ReaderDiskTable<K, V>: DiskTable<K, V> + Reader<K, V> {}
+pub trait ReaderDiskTable<K, V>: DiskTable<K, V> + Reader<K, V> + Send + Sync {}
 
 pub fn get_disk_table_path(storage_path: &Path, segment_name: &str) -> PathBuf {
     let disk_table_path = format!(
