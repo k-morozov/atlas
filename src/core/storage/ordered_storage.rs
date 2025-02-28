@@ -152,12 +152,11 @@ impl OrderedStorage {
 
         // mem_table = Box::new(MemoryTable::new(self.config.mem_table_size));
         mem_table.clear();
-        
-        metadata
-            .lock()
-            .unwrap()
-            .sync_disk(Path::new(metadata.lock().unwrap().get_metadata_path()));
-        
+
+        let locked_metadata = metadata.lock().unwrap();
+
+        // @todo
+        locked_metadata.sync_disk(Path::new(locked_metadata.get_metadata_path()));
     }
 
     pub fn merge_disk_tables(&mut self) {
