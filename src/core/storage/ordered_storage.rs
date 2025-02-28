@@ -262,8 +262,10 @@ impl Drop for OrderedStorage {
     }
 }
 
+unsafe impl Sync for OrderedStorage {}
+
 impl Storage for OrderedStorage {
-    fn put(&mut self, entry: FlexibleUserEntry) -> Result<(), Error> {
+    fn put(&self, entry: FlexibleUserEntry) -> Result<(), Error> {
         if self.shutdown.load(Ordering::SeqCst) {
             // @todo
             return Ok(());
@@ -319,9 +321,9 @@ mod tests {
     use crate::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 
     #[test]
-    fn test_segment() -> io::Result<()> {
+    fn test_simple() -> io::Result<()> {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
-        let table_path = tmp_dir.path().join("test_segment");
+        let table_path = tmp_dir.path().join("test_simple");
 
         {
             let mut config = StorageConfig::default_config();
@@ -343,6 +345,83 @@ mod tests {
                     FlexibleField::new(vec!(index * 10, 30, 40))
                 );
             }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_simple_mt() -> io::Result<()> {
+        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+        let table_path = tmp_dir.path().join("test_simple_mt");
+
+        let mut config = StorageConfig::default_config();
+        config.mem_table_size = 2;
+
+        let table = Arc::new(OrderedStorage::new(table_path, config.clone()));
+
+        thread::scope(|s| {
+            let mut handless = vec![];
+
+            let t1 = table.clone();
+            let h = s.spawn(move || {
+                for index in 0..4 as u8 {
+                    let entry = FlexibleUserEntry::new(
+                        FlexibleField::new(vec![index, 3, 4]),
+                        FlexibleField::new(vec![index * 10, 30, 40]),
+                    );
+                    t1.put(entry).unwrap();
+                }
+            });
+            handless.push(h);
+
+            let t2 = table.clone();
+            let h = s.spawn(move || {
+                for index in 4..8 as u8 {
+                    let entry = FlexibleUserEntry::new(
+                        FlexibleField::new(vec![index, 3, 4]),
+                        FlexibleField::new(vec![index * 10, 30, 40]),
+                    );
+                    t2.put(entry).unwrap();
+                }
+            });
+            handless.push(h);
+
+            let t3 = table.clone();
+            let h = s.spawn(move || {
+                for index in 8..12 as u8 {
+                    let entry = FlexibleUserEntry::new(
+                        FlexibleField::new(vec![index, 3, 4]),
+                        FlexibleField::new(vec![index * 10, 30, 40]),
+                    );
+                    t3.put(entry).unwrap();
+                }
+            });
+            handless.push(h);
+
+            let t4 = table.clone();
+            let h = s.spawn(move || {
+                for index in 12..16 as u8 {
+                    let entry = FlexibleUserEntry::new(
+                        FlexibleField::new(vec![index, 3, 4]),
+                        FlexibleField::new(vec![index * 10, 30, 40]),
+                    );
+                    t4.put(entry).unwrap();
+                }
+            });
+            handless.push(h);
+
+            for h in handless {
+                h.join().unwrap();
+            }
+        });
+
+        for index in 0..16 as u8 {
+            let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
+            assert_eq!(
+                result.unwrap(),
+                FlexibleField::new(vec!(index * 10, 30, 40))
+            );
         }
 
         Ok(())
