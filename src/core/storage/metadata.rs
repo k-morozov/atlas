@@ -18,7 +18,7 @@ impl StorageMetadata {
         }
     }
 
-    pub fn get_metadata_path(&self) -> &Path {
+    fn get_metadata_path(&self) -> &Path {
         &self.metadata_path
     }
 
@@ -78,18 +78,18 @@ impl StorageMetadata {
         metadata
     }
 
-    pub fn sync_disk(&self, metadata_path: &Path) {
+    pub fn sync_disk(&self) {
         let mut options: OpenOptions = OpenOptions::new();
         options.write(true).create(true);
 
-        match options.open(metadata_path) {
+        match options.open(self.get_metadata_path()) {
             Ok(mut fd) => {
                 let segment_id = self.segment_id.get_id().to_string();
                 if let Err(er) = fd.write_all(segment_id.as_bytes()) {
                     panic!(
                         "Failed to write segment_id to table metadata. segment_id={}, metadata_path={}, error= {}",
                         segment_id,
-                        metadata_path.display(),
+                        self.get_metadata_path().display(),
                         er
                     );
                 }
@@ -98,7 +98,7 @@ impl StorageMetadata {
             Err(er) => {
                 panic!(
                     "Failed to open table metadata for update. metadata_path={}, error= {}",
-                    metadata_path.display(),
+                    self.get_metadata_path().display(),
                     er
                 );
             }

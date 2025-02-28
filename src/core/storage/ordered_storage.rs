@@ -83,28 +83,30 @@ impl OrderedStorage {
             disk_tables: disk_tables.clone(),
             config,
 
-            flush_worker: Some(thread::spawn(move || {
-                loop {
-                    while !need_flush.load(Ordering::SeqCst) && !shutdown.load(Ordering::SeqCst) {
-                        thread::sleep(std::time::Duration::from_secs(2));
-                    }
-
-                    if shutdown.load(Ordering::SeqCst) {
-                        return;
-                    }
-                    info!("call flush");
-
-                    Self::save_mem_table(
-                        m_mem_table.clone(),
-                        metadata.clone(),
-                        storage_path.clone(),
-                        disk_tables.clone(),
-                    );
-
-                    // locked_self.merge_disk_tables();
-
-                    need_flush.store(false, Ordering::SeqCst);
+            flush_worker: Some(thread::spawn(move || loop {
+                while !need_flush.load(Ordering::SeqCst) && !shutdown.load(Ordering::SeqCst) {
+                    thread::sleep(std::time::Duration::from_secs(2));
                 }
+
+                if shutdown.load(Ordering::SeqCst) && !need_flush.load(Ordering::SeqCst) {
+                    return;
+                }
+                info!("call flush");
+
+                Self::save_mem_table(
+                    m_mem_table.clone(),
+                    metadata.clone(),
+                    storage_path.clone(),
+                    disk_tables.clone(),
+                );
+
+                Self::merge_disk_tables(
+                    disk_tables.clone(),
+                    metadata.clone(),
+                    storage_path.clone(),
+                );
+
+                need_flush.store(false, Ordering::SeqCst);
             })),
         }
     }
@@ -122,6 +124,10 @@ impl OrderedStorage {
         disk_tables: Arc<RwLock<LevelsReaderDiskTables>>,
     ) {
         let mut mem_table = mem_table.write().unwrap();
+
+        if mem_table.current_size() == 0 {
+            return;
+        }
 
         let segment_id = metadata.lock().unwrap().segment_id.get_and_next();
         let segment_name = get_disk_table_name(segment_id);
@@ -150,102 +156,104 @@ impl OrderedStorage {
             Err(er) => panic!("Failed save_mem_table. {}", er),
         }
 
-        // mem_table = Box::new(MemoryTable::new(self.config.mem_table_size));
         mem_table.clear();
 
-        let locked_metadata = metadata.lock().unwrap();
-
-        // @todo
-        locked_metadata.sync_disk(Path::new(locked_metadata.get_metadata_path()));
+        metadata.lock().unwrap().sync_disk();
     }
 
-    pub fn merge_disk_tables(&mut self) {
-        // if !is_ready_to_merge(&self.disk_tables) {
-        //     return;
-        // }
+    fn merge_disk_tables(
+        disk_tables: Arc<RwLock<LevelsReaderDiskTables>>,
+        metadata: Arc<Mutex<StorageMetadata>>,
+        storage_path: PathBuf,
+    ) {
+        let mut storages = disk_tables.write().unwrap();
+        if !is_ready_to_merge(&storages) {
+            return;
+        }
 
-        // let storages = &mut self.disk_tables;
-        // let sgm_id = &mut self.metadata.segment_id;
+        let mut metadata = metadata.lock().unwrap();
+        let sgm_id = &mut metadata.segment_id;
 
-        // for merging_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
-        //     let disk_table_id = sgm_id.get_and_next();
+        for merging_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
+            let disk_table_id = sgm_id.get_and_next();
 
-        //     // @todo
-        //     match storages.get(&merging_level) {
-        //         Some(segments_by_level) => {
-        //             if segments_by_level.len() != config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL {
-        //                 continue;
-        //             }
-        //         }
-        //         None => continue,
-        //     }
+            // @todo
+            match storages.get(&merging_level) {
+                Some(segments_by_level) => {
+                    if segments_by_level.len() != config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL {
+                        continue;
+                    }
+                }
+                None => continue,
+            }
 
-        //     let level_for_new_sg = if merging_level != SEGMENTS_MAX_LEVEL {
-        //         merging_level + 1
-        //     } else {
-        //         merging_level
-        //     };
+            let level_for_new_sg = if merging_level != SEGMENTS_MAX_LEVEL {
+                merging_level + 1
+            } else {
+                merging_level
+            };
 
-        //     let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
-        //     let disk_table_path = get_disk_table_path(&self.storage_path, &segment_name);
-        //     let merging_segments = &storages[&merging_level];
+            let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
+            let disk_table_path = get_disk_table_path(storage_path.as_path(), &segment_name);
+            let merging_segments = &storages[&merging_level];
 
-        //     let mut its = merging_segments
-        //         .iter()
-        //         .map(|disk_table| disk_table.into_iter())
-        //         .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
-        //     let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
-        //     let mut builder = DiskTableBuilder::new(disk_table_path.as_path());
+            let mut its = merging_segments
+                .iter()
+                .map(|disk_table| disk_table.into_iter())
+                .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
+            let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
+            let mut builder = DiskTableBuilder::new(disk_table_path.as_path());
 
-        //     while entries.iter().any(|v| v.is_some()) {
-        //         let (index, entry) = entries
-        //             .iter()
-        //             .enumerate()
-        //             .filter(|(_index, v)| v.is_some())
-        //             .map(|(index, entry)| {
-        //                 let e = entry.as_ref().unwrap();
-        //                 (index, e)
-        //             })
-        //             .collect::<Vec<_>>()
-        //             // @todo iter vs into_iter
-        //             .into_iter()
-        //             .min_by(|lhs, rhs| lhs.1.get_key().cmp(rhs.1.get_key()))
-        //             .unwrap();
+            while entries.iter().any(|v| v.is_some()) {
+                let (index, entry) = entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(_index, v)| v.is_some())
+                    .map(|(index, entry)| {
+                        let e = entry.as_ref().unwrap();
+                        (index, e)
+                    })
+                    .collect::<Vec<_>>()
+                    // @todo iter vs into_iter
+                    .into_iter()
+                    .min_by(|lhs, rhs| lhs.1.get_key().cmp(rhs.1.get_key()))
+                    .unwrap();
 
-        //         builder.append_entry(entry);
+                builder.append_entry(entry);
 
-        //         if let Some(it) = its.get_mut(index) {
-        //             entries[index] = it.next();
-        //         }
-        //     }
+                if let Some(it) = its.get_mut(index) {
+                    entries[index] = it.next();
+                }
+            }
 
-        //     let Ok(merged_disk_table) = builder.build() else {
-        //         panic!("Failed create disk table for merge_disk_tables")
-        //     };
+            let Ok(merged_disk_table) = builder.build() else {
+                panic!("Failed create disk table for merge_disk_tables")
+            };
 
-        //     for merging_disk_table in storages.get_mut(&merging_level).unwrap() {
-        //         match merging_disk_table.remove() {
-        //             Ok(_) => {}
-        //             Err(er) => panic!(
-        //                 "failed remove merged disk table: path={}, error={}",
-        //                 merging_disk_table.get_path().display(),
-        //                 er,
-        //             ),
-        //         }
-        //     }
+            for merging_disk_table in storages.get_mut(&merging_level).unwrap() {
+                match merging_disk_table.remove() {
+                    Ok(_) => {}
+                    Err(er) => panic!(
+                        "failed remove merged disk table: path={}, error={}",
+                        merging_disk_table.get_path().display(),
+                        er,
+                    ),
+                }
+            }
 
-        //     storages.get_mut(&merging_level).unwrap().clear();
-        //     storages
-        //         .entry(level_for_new_sg)
-        //         .or_insert_with(Vec::new)
-        //         .push(merged_disk_table);
-        // }
+            storages.get_mut(&merging_level).unwrap().clear();
+            storages
+                .entry(level_for_new_sg)
+                .or_insert_with(Vec::new)
+                .push(merged_disk_table);
+        }
     }
 }
 
 impl Drop for OrderedStorage {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
+        self.need_flush.store(true, Ordering::SeqCst);
 
         match self.flush_worker.take().unwrap().join() {
             Ok(_) => info!("Flush worker was joined"),
@@ -256,6 +264,10 @@ impl Drop for OrderedStorage {
 
 impl Storage for OrderedStorage {
     fn put(&mut self, entry: FlexibleUserEntry) -> Result<(), Error> {
+        if self.shutdown.load(Ordering::SeqCst) {
+            // @todo
+            return Ok(());
+        }
         let mut table = self.m_mem_table.write().unwrap();
         table.append(entry.clone());
 
@@ -269,6 +281,9 @@ impl Storage for OrderedStorage {
     }
 
     fn get(&self, key: &FlexibleField) -> Result<Option<FlexibleField>, Error> {
+        if self.shutdown.load(Ordering::SeqCst) {
+            return Ok(None);
+        }
         if let Some(value) = self.m_mem_table.read().unwrap().get_value(key) {
             return Ok(Some(value));
         }
