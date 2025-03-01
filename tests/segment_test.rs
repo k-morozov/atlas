@@ -78,7 +78,7 @@ fn test_get_from_some_data_blocks() -> io::Result<()> {
     config.mem_table_size = 3;
     config.data_block_size = 64;
 
-    let mut table = OrderedStorage::new(table_path, config.clone());
+    let table = OrderedStorage::new(table_path, config.clone());
 
     for index in 0..9 as u8 {
         let entry = FlexibleUserEntry::new(

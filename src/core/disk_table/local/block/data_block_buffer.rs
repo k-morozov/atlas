@@ -83,10 +83,6 @@ impl DataBlockBuffer {
         self.max_size
     }
 
-    pub fn current_size(&self) -> usize {
-        self.current_pos
-    }
-
     pub fn remaining_size(&self) -> usize {
         self.max_size - self.current_pos
     }

@@ -1,31 +1,39 @@
-use std::cell::RefCell;
-use std::fs::create_dir_all;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread;
+use std::{
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, RwLock,
+    },
+    thread,
+};
 
 use log::{error, info};
 
-use super::config;
-use super::storage::Storage;
-use crate::core::disk_table::disk_table::{get_disk_table_name_by_level, ReaderDiskTableIterator};
-use crate::core::disk_table::id::DiskTableID;
-use crate::core::disk_table::utils::SEGMENTS_MAX_LEVEL;
-use crate::core::disk_table::{
-    disk_table::{get_disk_table_name, get_disk_table_path},
-    local::local_disk_table_builder::DiskTableBuilder,
-    utils::{get_disk_tables, LevelsReaderDiskTables, SEGMENTS_MIN_LEVEL},
+use crate::{
+    core::{
+        disk_table::{
+            disk_table::{
+                get_disk_table_name, get_disk_table_name_by_level, get_disk_table_path,
+                ReaderDiskTableIterator,
+            },
+            local::local_disk_table_builder::DiskTableBuilder,
+            utils::{
+                get_disk_tables, LevelsReaderDiskTables, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL,
+            },
+        },
+        entry::flexible_user_entry::FlexibleUserEntry,
+        field::FlexibleField,
+        mem_table::MemoryTable,
+        merge::merge::is_ready_to_merge,
+        storage::{
+            config::{self, StorageConfig, DEFAULT_TEST_TABLES_PATH},
+            metadata::StorageMetadata,
+            storage::Storage,
+        },
+    },
+    errors::Error,
 };
-use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
-use crate::core::field::FlexibleField;
-use crate::core::mem_table::MemoryTable;
-use crate::core::merge::merge::is_ready_to_merge;
-use crate::core::storage::{
-    config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
-    metadata::StorageMetadata,
-};
-use crate::errors::Error;
 
 fn create_dirs(storage_path: &Path) -> Result<(), Error> {
     create_dir_all(Path::new(storage_path))?;
@@ -36,6 +44,7 @@ fn create_dirs(storage_path: &Path) -> Result<(), Error> {
 }
 
 pub struct OrderedStorage {
+    // @todo
     storage_path: PathBuf,
     m_mem_table: Arc<RwLock<MemoryTable>>,
     // i_mem_table: Option<Box<MemoryTable>>,
@@ -315,7 +324,7 @@ impl Storage for OrderedStorage {
 mod tests {
     use std::io;
     use std::ops::Range;
-    use std::thread::{JoinHandle, Scope, ScopedJoinHandle};
+    use std::thread::{Scope, ScopedJoinHandle};
     use tempfile::Builder;
 
     use super::*;
@@ -406,7 +415,7 @@ mod tests {
         let table_path = tmp_dir.path().join("test_some_segments");
 
         let config = StorageConfig::default_config();
-        let mut table = OrderedStorage::new(table_path, config.clone());
+        let table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..3 * config.mem_table_size as u8 {
             let entry = FlexibleUserEntry::new(
@@ -434,7 +443,7 @@ mod tests {
 
         let config = StorageConfig::default_config();
         {
-            let mut table = OrderedStorage::new(&table_path, config.clone());
+            let table = OrderedStorage::new(&table_path, config.clone());
 
             for index in 0..10 * config.mem_table_size as u8 {
                 let entry = FlexibleUserEntry::new(
@@ -466,7 +475,7 @@ mod tests {
 
         let config = StorageConfig::default_config();
 
-        let mut table = OrderedStorage::new(table_path, config.clone());
+        let table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..5 * config.mem_table_size as u8 {
             let entry = FlexibleUserEntry::new(
@@ -491,7 +500,7 @@ mod tests {
 
         let config = StorageConfig::default_config();
 
-        let mut table = OrderedStorage::new(table_path, config.clone());
+        let table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..64 * (config.mem_table_size - 1) as u8 {
             let entry = FlexibleUserEntry::new(
