@@ -314,11 +314,29 @@ impl Storage for OrderedStorage {
 #[cfg(test)]
 mod tests {
     use std::io;
+    use std::ops::Range;
+    use std::thread::{JoinHandle, Scope, ScopedJoinHandle};
     use tempfile::Builder;
 
     use super::*;
     use crate::core::field::*;
     use crate::core::storage::config::DEFAULT_TEST_TABLES_PATH;
+
+    fn spawn_entries_for_range<'a>(
+        s: &'a Scope<'a, 'a>,
+        table: Arc<OrderedStorage>,
+        range: Range<u8>,
+    ) -> ScopedJoinHandle<'a, ()> {
+        s.spawn(move || {
+            for index in range {
+                let entry = FlexibleUserEntry::new(
+                    FlexibleField::new(vec![index, 3, 4]),
+                    FlexibleField::new(vec![index * 10, 30, 40]),
+                );
+                table.put(entry).unwrap();
+            }
+        })
+    }
 
     #[test]
     fn test_simple() -> io::Result<()> {
@@ -328,7 +346,7 @@ mod tests {
         {
             let mut config = StorageConfig::default_config();
             config.mem_table_size = 2;
-            let mut table = OrderedStorage::new(table_path, config.clone());
+            let table = OrderedStorage::new(table_path, config.clone());
 
             for index in 0..=config.mem_table_size as u8 {
                 let entry = FlexibleUserEntry::new(
@@ -356,73 +374,39 @@ mod tests {
         let table_path = tmp_dir.path().join("test_simple_mt");
 
         let mut config = StorageConfig::default_config();
-        config.mem_table_size = 2;
+        config.mem_table_size = 4;
 
         let table = Arc::new(OrderedStorage::new(table_path, config.clone()));
 
         thread::scope(|s| {
-            let mut handless = vec![];
+            let ranges = vec![0..4, 4..8, 8..12, 12..16];
 
-            let t1 = table.clone();
-            let h = s.spawn(move || {
-                for index in 0..4 as u8 {
-                    let entry = FlexibleUserEntry::new(
-                        FlexibleField::new(vec![index, 3, 4]),
-                        FlexibleField::new(vec![index * 10, 30, 40]),
-                    );
-                    t1.put(entry).unwrap();
-                }
-            });
-            handless.push(h);
+            let handles: Vec<_> = ranges
+                .into_iter()
+                .map(|range| {
+                    let t = table.clone();
+                    s.spawn(move || {
+                        for index in range {
+                            let entry = FlexibleUserEntry::new(
+                                FlexibleField::new(vec![index, 3, 4]),
+                                FlexibleField::new(vec![index * 10, 30, 40]),
+                            );
+                            t.put(entry).unwrap();
+                        }
+                    })
+                })
+                .collect();
 
-            let t2 = table.clone();
-            let h = s.spawn(move || {
-                for index in 4..8 as u8 {
-                    let entry = FlexibleUserEntry::new(
-                        FlexibleField::new(vec![index, 3, 4]),
-                        FlexibleField::new(vec![index * 10, 30, 40]),
-                    );
-                    t2.put(entry).unwrap();
-                }
-            });
-            handless.push(h);
-
-            let t3 = table.clone();
-            let h = s.spawn(move || {
-                for index in 8..12 as u8 {
-                    let entry = FlexibleUserEntry::new(
-                        FlexibleField::new(vec![index, 3, 4]),
-                        FlexibleField::new(vec![index * 10, 30, 40]),
-                    );
-                    t3.put(entry).unwrap();
-                }
-            });
-            handless.push(h);
-
-            let t4 = table.clone();
-            let h = s.spawn(move || {
-                for index in 12..16 as u8 {
-                    let entry = FlexibleUserEntry::new(
-                        FlexibleField::new(vec![index, 3, 4]),
-                        FlexibleField::new(vec![index * 10, 30, 40]),
-                    );
-                    t4.put(entry).unwrap();
-                }
-            });
-            handless.push(h);
-
-            for h in handless {
-                h.join().unwrap();
-            }
+            handles.into_iter().for_each(|h| h.join().unwrap());
         });
 
-        for index in 0..16 as u8 {
+        (0..16).into_iter().for_each(|index| {
             let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
             assert_eq!(
                 result.unwrap(),
                 FlexibleField::new(vec!(index * 10, 30, 40))
             );
-        }
+        });
 
         Ok(())
     }
