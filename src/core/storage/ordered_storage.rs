@@ -323,29 +323,11 @@ impl Storage for OrderedStorage {
 #[cfg(test)]
 mod tests {
     use std::io;
-    use std::ops::Range;
-    use std::thread::{Scope, ScopedJoinHandle};
     use tempfile::Builder;
 
     use super::*;
     use crate::core::field::*;
     use crate::core::storage::config::DEFAULT_TEST_TABLES_PATH;
-
-    fn spawn_entries_for_range<'a, 'b>(
-        s: &'a Scope<'a, 'b>,
-        table: Arc<OrderedStorage>,
-        range: Range<u8>,
-    ) -> ScopedJoinHandle<'a, ()> {
-        s.spawn(move || {
-            for index in range {
-                let entry = FlexibleUserEntry::new(
-                    FlexibleField::new(vec![index, 3, 4]),
-                    FlexibleField::new(vec![index * 10, 30, 40]),
-                );
-                table.put(entry).unwrap();
-            }
-        })
-    }
 
     #[test]
     fn test_simple() -> io::Result<()> {
@@ -373,38 +355,6 @@ mod tests {
                 );
             }
         }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_simple_mt() -> io::Result<()> {
-        let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
-        let table_path = tmp_dir.path().join("test_simple_mt");
-
-        let mut config = StorageConfig::default_config();
-        config.mem_table_size = 4;
-
-        let table = Arc::new(OrderedStorage::new(table_path, config.clone()));
-
-        thread::scope(|s| {
-            let ranges = vec![0..4, 4..8, 8..12, 12..16];
-
-            let handles: Vec<_> = ranges
-                .into_iter()
-                .map(|range| spawn_entries_for_range(s, table.clone(), range))
-                .collect();
-
-            handles.into_iter().for_each(|h| h.join().unwrap());
-        });
-
-        (0..16).into_iter().for_each(|index| {
-            let result = table.get(&FlexibleField::new(vec![index, 3, 4])).unwrap();
-            assert_eq!(
-                result.unwrap(),
-                FlexibleField::new(vec!(index * 10, 30, 40))
-            );
-        });
 
         Ok(())
     }

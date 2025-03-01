@@ -1,6 +1,10 @@
-use std::fs;
-use std::io;
-use std::path::Path;
+use std::{
+    fs, io,
+    ops::Range,
+    path::Path,
+    sync::Arc,
+    thread::{self, Scope, ScopedJoinHandle},
+};
 
 use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 use kvs::core::storage::ordered_storage::OrderedStorage;
@@ -13,6 +17,37 @@ use kvs::core::disk_table::local::local_disk_table_builder::DiskTableBuilder;
 use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
 use kvs::core::field::FlexibleField;
 use kvs::core::storage::config::StorageConfig;
+
+fn spawn_put_entries_for_range<'a, 'b>(
+    s: &'a Scope<'a, 'b>,
+    table: Arc<OrderedStorage>,
+    range: Range<u32>,
+) -> ScopedJoinHandle<'a, ()> {
+    s.spawn(move || {
+        for index in range {
+            let entry = FlexibleUserEntry::new(
+                FlexibleField::new(index.to_le_bytes()),
+                FlexibleField::new((index + 10).to_le_bytes()),
+            );
+            table.put(entry).unwrap();
+        }
+    })
+}
+
+fn spawn_get_entries_for_range<'a, 'b>(
+    s: &'a Scope<'a, 'b>,
+    table: Arc<OrderedStorage>,
+    range: Range<u32>,
+) -> ScopedJoinHandle<'a, ()> {
+    s.spawn(move || {
+        for index in range {
+            if let Some(r) = table.get(&FlexibleField::new(index.to_le_bytes())).unwrap() {
+                let expected = FlexibleField::new((index + 10).to_le_bytes());
+                assert_eq!(r, expected);
+            }
+        }
+    })
+}
 
 #[test]
 fn simple_flexible_segment() -> io::Result<()> {
@@ -106,6 +141,69 @@ fn test_get_from_some_data_blocks() -> io::Result<()> {
 
     let result = table.get(&FlexibleField::new(vec![2])).unwrap();
     assert_eq!(result, None);
+
+    Ok(())
+}
+
+#[test]
+fn test_some_put() -> io::Result<()> {
+    let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+    let table_path = tmp_dir.path().join("test_some_put");
+
+    let mut config = StorageConfig::default_config();
+    config.mem_table_size = 4;
+
+    let table = Arc::new(OrderedStorage::new(table_path, config.clone()));
+
+    thread::scope(|s| {
+        let ranges = vec![0..128, 128..256, 256..512, 512..1024];
+
+        let handles: Vec<_> = ranges
+            .into_iter()
+            .map(|range| spawn_put_entries_for_range(s, table.clone(), range))
+            .collect();
+
+        handles.into_iter().for_each(|h| h.join().unwrap());
+    });
+
+    (0..16u32).into_iter().for_each(|index| {
+        let result = table.get(&FlexibleField::new(index.to_le_bytes())).unwrap();
+        assert_eq!(
+            result.unwrap(),
+            FlexibleField::new((index + 10).to_le_bytes())
+        );
+    });
+
+    Ok(())
+}
+
+#[test]
+fn test_some_reads_and_writes() -> io::Result<()> {
+    let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+    let table_path = tmp_dir.path().join("test_some_reads_and_writes");
+
+    let mut config = StorageConfig::default_config();
+    config.mem_table_size = 4;
+
+    let table = Arc::new(OrderedStorage::new(table_path, config.clone()));
+
+    thread::scope(|s| {
+        let put_ranges = vec![0..128, 128..256, 256..512, 512..1024];
+
+        let put_handles: Vec<_> = put_ranges
+            .into_iter()
+            .map(|range| spawn_put_entries_for_range(s, table.clone(), range))
+            .collect();
+
+        let get_ranges = vec![0..256, 256..1024];
+        let get_handles: Vec<_> = get_ranges
+            .into_iter()
+            .map(|range| spawn_get_entries_for_range(s, table.clone(), range))
+            .collect();
+
+        put_handles.into_iter().for_each(|h| h.join().unwrap());
+        get_handles.into_iter().for_each(|h| h.join().unwrap());
+    });
 
     Ok(())
 }
