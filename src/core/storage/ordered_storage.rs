@@ -322,8 +322,8 @@ mod tests {
     use crate::core::field::*;
     use crate::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 
-    fn spawn_entries_for_range<'a>(
-        s: &'a Scope<'a, 'a>,
+    fn spawn_entries_for_range<'a, 'b>(
+        s: &'a Scope<'a, 'b>,
         table: Arc<OrderedStorage>,
         range: Range<u8>,
     ) -> ScopedJoinHandle<'a, ()> {
@@ -383,18 +383,7 @@ mod tests {
 
             let handles: Vec<_> = ranges
                 .into_iter()
-                .map(|range| {
-                    let t = table.clone();
-                    s.spawn(move || {
-                        for index in range {
-                            let entry = FlexibleUserEntry::new(
-                                FlexibleField::new(vec![index, 3, 4]),
-                                FlexibleField::new(vec![index * 10, 30, 40]),
-                            );
-                            t.put(entry).unwrap();
-                        }
-                    })
-                })
+                .map(|range| spawn_entries_for_range(s, table.clone(), range))
                 .collect();
 
             handles.into_iter().for_each(|h| h.join().unwrap());
