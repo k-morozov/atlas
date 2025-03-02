@@ -32,7 +32,7 @@ jobs:
     - name: Style
       run: cargo fmt
     - name: Build example
-      run: cargo build --example example -r
+      run: cargo build --example example
     - name: Run example
       run: |
         sudo apt-get update

@@ -18,7 +18,7 @@ impl DiskTableID {
         }
     }
 
-    pub fn get_and_next(&mut self) -> DiskTableID {
+    pub fn get_and_next(&self) -> DiskTableID {
         let result = self.id.fetch_add(1, Ordering::SeqCst);
         DiskTableID { id: result.into() }
     }

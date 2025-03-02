@@ -17,9 +17,13 @@ use crate::{
                 get_disk_table_name, get_disk_table_name_by_level, get_disk_table_path,
                 ReaderDiskTableIterator,
             },
-            local::local_disk_table_builder::DiskTableBuilder,
+            local::{
+                local_disk_table_builder::DiskTableBuilder,
+                reader_local_disk_table::ReaderDiskTablePtr,
+            },
             utils::{
-                get_disk_tables, LevelsReaderDiskTables, SEGMENTS_MAX_LEVEL, SEGMENTS_MIN_LEVEL,
+                get_disk_tables, Levels, LevelsReaderDiskTables, SEGMENTS_MAX_LEVEL,
+                SEGMENTS_MIN_LEVEL,
             },
         },
         entry::flexible_user_entry::FlexibleUserEntry,
@@ -138,8 +142,8 @@ impl OrderedStorage {
             return;
         }
 
-        let segment_id = metadata.lock().unwrap().segment_id.get_and_next();
-        let segment_name = get_disk_table_name(segment_id);
+        let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
+        let segment_name = get_disk_table_name(disk_table_id);
         let disk_table_path = get_disk_table_path(storage_path.as_path(), &segment_name);
 
         let segment_from_mem_table = mem_table
@@ -175,69 +179,24 @@ impl OrderedStorage {
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
     ) {
-        let mut storages = disk_tables.write().unwrap();
-        if !is_ready_to_merge(&storages) {
-            return;
-        }
-
-        let mut metadata = metadata.lock().unwrap();
-        let sgm_id = &mut metadata.segment_id;
-
         for merging_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
-            let disk_table_id = sgm_id.get_and_next();
-
-            // @todo
-            match storages.get(&merging_level) {
-                Some(segments_by_level) => {
-                    if segments_by_level.len() != config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL {
-                        continue;
-                    }
-                }
-                None => continue,
-            }
-
             let level_for_new_sg = if merging_level != SEGMENTS_MAX_LEVEL {
                 merging_level + 1
             } else {
                 merging_level
             };
 
-            let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
-            let disk_table_path = get_disk_table_path(storage_path.as_path(), &segment_name);
-            let merging_segments = &storages[&merging_level];
-
-            let mut its = merging_segments
-                .iter()
-                .map(|disk_table| disk_table.into_iter())
-                .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
-            let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
-            let mut builder = DiskTableBuilder::new(disk_table_path.as_path());
-
-            while entries.iter().any(|v| v.is_some()) {
-                let (index, entry) = entries
-                    .iter()
-                    .enumerate()
-                    .filter(|(_index, v)| v.is_some())
-                    .map(|(index, entry)| {
-                        let e = entry.as_ref().unwrap();
-                        (index, e)
-                    })
-                    .collect::<Vec<_>>()
-                    // @todo iter vs into_iter
-                    .into_iter()
-                    .min_by(|lhs, rhs| lhs.1.get_key().cmp(rhs.1.get_key()))
-                    .unwrap();
-
-                builder.append_entry(entry);
-
-                if let Some(it) = its.get_mut(index) {
-                    entries[index] = it.next();
-                }
-            }
-
-            let Ok(merged_disk_table) = builder.build() else {
-                panic!("Failed create disk table for merge_disk_tables")
+            let merged_disk_table = match Self::create_merged_disk_table(
+                &disk_tables,
+                merging_level,
+                metadata.clone(),
+                storage_path.as_path(),
+            ) {
+                Some(new_disk_table) => new_disk_table,
+                None => continue,
             };
+
+            let mut storages = disk_tables.write().unwrap();
 
             for merging_disk_table in storages.get_mut(&merging_level).unwrap() {
                 match merging_disk_table.remove() {
@@ -256,6 +215,73 @@ impl OrderedStorage {
                 .or_insert_with(Vec::new)
                 .push(merged_disk_table);
         }
+    }
+
+    fn create_merged_disk_table(
+        disk_tables: &Arc<RwLock<LevelsReaderDiskTables>>,
+        merging_level: Levels,
+        metadata: Arc<Mutex<StorageMetadata>>,
+        storage_path: &Path,
+    ) -> Option<ReaderDiskTablePtr> {
+        let storages = disk_tables.read().unwrap();
+        if !is_ready_to_merge(&storages, merging_level) {
+            return None;
+        }
+        // @todo
+        match storages.get(&merging_level) {
+            Some(segments_by_level) => {
+                if segments_by_level.len() != config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL {
+                    return None;
+                }
+            }
+            None => return None,
+        }
+
+        let level_for_new_sg = if merging_level != SEGMENTS_MAX_LEVEL {
+            merging_level + 1
+        } else {
+            merging_level
+        };
+
+        let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
+        let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
+        let disk_table_path = get_disk_table_path(storage_path, &segment_name);
+        let merging_segments = &storages[&merging_level];
+
+        let mut its = merging_segments
+            .iter()
+            .map(|disk_table| disk_table.into_iter())
+            .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
+        let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
+        let mut builder = DiskTableBuilder::new(disk_table_path.as_path());
+
+        while entries.iter().any(|v| v.is_some()) {
+            let (index, entry) = entries
+                .iter()
+                .enumerate()
+                .filter(|(_index, v)| v.is_some())
+                .map(|(index, entry)| {
+                    let e = entry.as_ref().unwrap();
+                    (index, e)
+                })
+                .collect::<Vec<_>>()
+                // @todo iter vs into_iter
+                .into_iter()
+                .min_by(|lhs, rhs| lhs.1.get_key().cmp(rhs.1.get_key()))
+                .unwrap();
+
+            builder.append_entry(entry);
+
+            if let Some(it) = its.get_mut(index) {
+                entries[index] = it.next();
+            }
+        }
+
+        let Ok(merged_disk_table) = builder.build() else {
+            panic!("Failed create disk table for merge_disk_tables")
+        };
+
+        Some(merged_disk_table)
     }
 }
 

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::core::disk_table::id::DiskTableID;
 
 pub struct StorageMetadata {
-    pub segment_id: DiskTableID,
+    segment_id: DiskTableID,
     metadata_path: PathBuf,
 }
 
@@ -16,17 +16,6 @@ impl StorageMetadata {
             segment_id: DiskTableID::new(),
             metadata_path: StorageMetadata::make_path(table_path),
         }
-    }
-
-    fn get_metadata_path(&self) -> &Path {
-        &self.metadata_path
-    }
-
-    pub fn make_path<P: AsRef<Path>>(table_path: P) -> PathBuf {
-        let mut metadata_path = table_path.as_ref().to_path_buf();
-        metadata_path.push("metadata");
-
-        metadata_path
     }
 
     pub fn from_file<P: AsRef<Path> + Copy>(metadata_path: P) -> Self {
@@ -76,6 +65,21 @@ impl StorageMetadata {
         };
 
         metadata
+    }
+
+    fn get_metadata_path(&self) -> &Path {
+        &self.metadata_path
+    }
+
+    pub fn make_path<P: AsRef<Path>>(table_path: P) -> PathBuf {
+        let mut metadata_path = table_path.as_ref().to_path_buf();
+        metadata_path.push("metadata");
+
+        metadata_path
+    }
+
+    pub fn get_new_disk_table_id(&self) -> DiskTableID {
+        self.segment_id.get_and_next()
     }
 
     pub fn sync_disk(&self) {
