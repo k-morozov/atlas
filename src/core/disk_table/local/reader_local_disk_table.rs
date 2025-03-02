@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::core::disk_table::local::block::{data_block, data_block_buffer, meta_block};
 use crate::core::marshal::read_u32;
@@ -67,7 +67,7 @@ impl ReaderFlexibleDiskTable {
             )
         };
 
-        Box::new(Self {
+        Arc::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             fd: Mutex::new(RefCell::new(fd)),
             count_entries,

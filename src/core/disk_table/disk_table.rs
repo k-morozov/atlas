@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::id::DiskTableID;
-use super::utils::Levels;
+use super::shard_level::Levels;
 use crate::core::entry::user_entry::UserEntry;
 use crate::errors::Result;
 
 pub type WriterDiskTablePtr<K, V> = Box<dyn WriterDiskTable<K, V>>;
-pub type ReaderDiskTablePtr<K, V> = Box<dyn ReaderDiskTable<K, V>>;
+pub type ReaderDiskTablePtr<K, V> = Arc<dyn ReaderDiskTable<K, V>>;
 
 pub trait Writer<K, V> {
     fn write(&mut self, buffer: &[u8]) -> Result<()>;

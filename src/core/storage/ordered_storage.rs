@@ -21,15 +21,12 @@ use crate::{
                 local_disk_table_builder::DiskTableBuilder,
                 reader_local_disk_table::ReaderDiskTablePtr,
             },
-            utils::{
-                get_disk_tables, Levels, LevelsReaderDiskTables, SEGMENTS_MAX_LEVEL,
-                SEGMENTS_MIN_LEVEL,
-            },
+            shard_level::{self, DiskTablesShards},
+            utils,
         },
         entry::flexible_user_entry::FlexibleUserEntry,
         field::FlexibleField,
         mem_table::MemoryTable,
-        merge::merge::is_ready_to_merge,
         storage::{
             config::{self, StorageConfig, DEFAULT_TEST_TABLES_PATH},
             metadata::StorageMetadata,
@@ -56,7 +53,7 @@ pub struct OrderedStorage {
     flush_worker: Option<thread::JoinHandle<()>>,
     shutdown: Arc<AtomicBool>,
     metadata: Arc<Mutex<StorageMetadata>>,
-    disk_tables: Arc<RwLock<LevelsReaderDiskTables>>,
+    disk_tables: Arc<DiskTablesShards>,
     config: StorageConfig,
 }
 
@@ -70,7 +67,7 @@ impl OrderedStorage {
             )
         }
 
-        let Ok(disk_tables) = get_disk_tables(storage_path.as_ref()) else {
+        let Ok(disk_tables) = utils::get_disk_tables(storage_path.as_ref()) else {
             panic!("Faield read disk tables")
         };
 
@@ -82,7 +79,7 @@ impl OrderedStorage {
         let need_flush = Arc::new(AtomicBool::new(false));
         let shutdown = Arc::new(AtomicBool::new(false));
 
-        let disk_tables = Arc::new(RwLock::new(disk_tables));
+        let disk_tables = Arc::new(disk_tables);
 
         let storage_path = storage_path.as_ref().to_path_buf();
 
@@ -97,6 +94,7 @@ impl OrderedStorage {
             config,
 
             flush_worker: Some(thread::spawn(move || loop {
+                let mut tables = disk_tables.clone();
                 while !need_flush.load(Ordering::SeqCst) && !shutdown.load(Ordering::SeqCst) {
                     thread::sleep(std::time::Duration::from_secs(2));
                 }
@@ -110,7 +108,7 @@ impl OrderedStorage {
                     m_mem_table.clone(),
                     metadata.clone(),
                     storage_path.clone(),
-                    disk_tables.clone(),
+                    &mut tables,
                 );
 
                 Self::merge_disk_tables(
@@ -134,7 +132,7 @@ impl OrderedStorage {
         mem_table: Arc<RwLock<MemoryTable>>,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
-        disk_tables: Arc<RwLock<LevelsReaderDiskTables>>,
+        disk_tables: &mut Arc<shard_level::DiskTablesShards>,
     ) {
         let mut mem_table = mem_table.write().unwrap();
 
@@ -159,12 +157,7 @@ impl OrderedStorage {
 
         match segment_from_mem_table {
             Ok(disk_table) => {
-                disk_tables
-                    .write()
-                    .unwrap()
-                    .entry(SEGMENTS_MIN_LEVEL)
-                    .or_insert_with(Vec::new)
-                    .push(disk_table);
+                disk_tables.put_disk_table_by_level(shard_level::SEGMENTS_MIN_LEVEL, disk_table);
             }
             Err(er) => panic!("Failed save_mem_table. {}", er),
         }
@@ -175,12 +168,12 @@ impl OrderedStorage {
     }
 
     fn merge_disk_tables(
-        disk_tables: Arc<RwLock<LevelsReaderDiskTables>>,
+        disk_tables: Arc<shard_level::DiskTablesShards>,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
     ) {
-        for merging_level in SEGMENTS_MIN_LEVEL..=SEGMENTS_MAX_LEVEL {
-            let level_for_new_sg = if merging_level != SEGMENTS_MAX_LEVEL {
+        for merging_level in shard_level::SEGMENTS_MIN_LEVEL..=shard_level::SEGMENTS_MAX_LEVEL {
+            let level_for_new_sg = if merging_level != shard_level::SEGMENTS_MAX_LEVEL {
                 merging_level + 1
             } else {
                 merging_level
@@ -193,51 +186,27 @@ impl OrderedStorage {
                 storage_path.as_path(),
             ) {
                 Some(new_disk_table) => new_disk_table,
-                None => continue,
+                None => break,
             };
 
-            let mut storages = disk_tables.write().unwrap();
-
-            for merging_disk_table in storages.get_mut(&merging_level).unwrap() {
-                match merging_disk_table.remove() {
-                    Ok(_) => {}
-                    Err(er) => panic!(
-                        "failed remove merged disk table: path={}, error={}",
-                        merging_disk_table.get_path().display(),
-                        er,
-                    ),
-                }
+            if let Err(er) = disk_tables.remove_tables_from_level(merging_level) {
+                panic!("failed remove merging disk table: error={}", er)
             }
-
-            storages.get_mut(&merging_level).unwrap().clear();
-            storages
-                .entry(level_for_new_sg)
-                .or_insert_with(Vec::new)
-                .push(merged_disk_table);
+            disk_tables.put_disk_table_by_level(level_for_new_sg, merged_disk_table);
         }
     }
 
     fn create_merged_disk_table(
-        disk_tables: &Arc<RwLock<LevelsReaderDiskTables>>,
-        merging_level: Levels,
+        disk_tables: &Arc<shard_level::DiskTablesShards>,
+        merging_level: shard_level::Levels,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: &Path,
     ) -> Option<ReaderDiskTablePtr> {
-        let storages = disk_tables.read().unwrap();
-        if !is_ready_to_merge(&storages, merging_level) {
+        if !disk_tables.is_ready_to_merge(merging_level) {
             return None;
         }
-        // @todo
-        match storages.get(&merging_level) {
-            Some(segments_by_level) => {
-                if segments_by_level.len() != config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL {
-                    return None;
-                }
-            }
-            None => return None,
-        }
 
-        let level_for_new_sg = if merging_level != SEGMENTS_MAX_LEVEL {
+        let level_for_new_sg = if merging_level != shard_level::SEGMENTS_MAX_LEVEL {
             merging_level + 1
         } else {
             merging_level
@@ -246,40 +215,8 @@ impl OrderedStorage {
         let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
         let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
         let disk_table_path = get_disk_table_path(storage_path, &segment_name);
-        let merging_segments = &storages[&merging_level];
 
-        let mut its = merging_segments
-            .iter()
-            .map(|disk_table| disk_table.into_iter())
-            .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
-        let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
-        let mut builder = DiskTableBuilder::new(disk_table_path.as_path());
-
-        while entries.iter().any(|v| v.is_some()) {
-            let (index, entry) = entries
-                .iter()
-                .enumerate()
-                .filter(|(_index, v)| v.is_some())
-                .map(|(index, entry)| {
-                    let e = entry.as_ref().unwrap();
-                    (index, e)
-                })
-                .collect::<Vec<_>>()
-                // @todo iter vs into_iter
-                .into_iter()
-                .min_by(|lhs, rhs| lhs.1.get_key().cmp(rhs.1.get_key()))
-                .unwrap();
-
-            builder.append_entry(entry);
-
-            if let Some(it) = its.get_mut(index) {
-                entries[index] = it.next();
-            }
-        }
-
-        let Ok(merged_disk_table) = builder.build() else {
-            panic!("Failed create disk table for merge_disk_tables")
-        };
+        let merged_disk_table = disk_tables.merge_level(merging_level, disk_table_path.as_path());
 
         Some(merged_disk_table)
     }
@@ -325,24 +262,7 @@ impl Storage for OrderedStorage {
             return Ok(Some(value));
         }
 
-        let disk_tables = self.disk_tables.read().unwrap();
-        let mut it = disk_tables.iter();
-
-        for (_level, segments) in it.by_ref() {
-            for segment in segments {
-                match segment.read(key) {
-                    Ok(v) => match v {
-                        Some(v) => return Ok(Some(v)),
-                        None => continue,
-                    },
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }
-            }
-        }
-
-        Ok(None)
+        self.disk_tables.get(key)
     }
 }
 
