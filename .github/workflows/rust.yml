@@ -37,7 +37,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y strace
-        strace -c -S -o output.txt cargo run --example example
+        strace -c -S calls -o output.txt cargo run --example example
         cat output.txt
 
     # - name: Upload strace output as artifact
