@@ -38,12 +38,13 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y strace
         time strace -c -S -w -tt -T -o output.txt cargo run --example example
+        cat output.txt
 
-    - name: Upload strace output as artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: output
-        path: output.txt
+    # - name: Upload strace output as artifact
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: output
+    #     path: output.txt
 
   miri:
     name: "Miri"
