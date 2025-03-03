@@ -47,7 +47,7 @@ fn main() {
 
     let (tx, rx) = channel();
     let mid = TOTAL_VALUE / 2;
-    
+
     thread::scope(|s| {
         s.spawn(|| {
             for index in 0..mid {
@@ -81,7 +81,12 @@ fn main() {
                     }
 
                     let result = table.get(entry.get_key()).unwrap();
-                    assert_eq!(result.unwrap(), *entry.get_value());
+                    let expected = entry.get_value();
+                    if result.is_none() {
+                        assert!(false, "expected {:?}", *expected);
+                    }
+                    
+                    assert_eq!(result.unwrap(), *expected, "expected {:?}", *expected);
                 }
                 Err(er) => match er {
                     std::sync::mpsc::TryRecvError::Empty => {
