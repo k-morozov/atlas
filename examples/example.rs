@@ -74,7 +74,7 @@ fn main() {
         });
 
         for index in 0..TOTAL_VALUE {
-            match rx.try_recv() {
+            match rx.recv() {
                 Ok(entry) => {
                     if index % 10000 == 0 {
                         info!("searching index={}", index);
@@ -90,15 +90,7 @@ fn main() {
                     
                     assert_eq!(result.unwrap(), *expected, "expected {:?}", *expected);
                 }
-                Err(er) => match er {
-                    std::sync::mpsc::TryRecvError::Empty => {
-                        thread::sleep(std::time::Duration::from_secs(2));
-                        continue;
-                    }
-                    std::sync::mpsc::TryRecvError::Disconnected => {
-                        panic!("Disconnected is unexpected")
-                    }
-                },
+                Err(er) => panic!("Error: {:?}", er),
             }
         }
     });
