@@ -82,7 +82,15 @@ fn main() {
                     let result = table.get(entry.get_key()).unwrap();
                     assert_eq!(result.unwrap(), *entry.get_value());
                 }
-                Err(_) => break,
+                Err(er) => match er {
+                    std::sync::mpsc::TryRecvError::Empty => {
+                        thread::sleep(std::time::Duration::from_secs(2));
+                        continue;
+                    }
+                    std::sync::mpsc::TryRecvError::Disconnected => {
+                        panic!("Disconnected is unexpected")
+                    }
+                },
             }
         }
     });
