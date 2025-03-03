@@ -1,5 +1,5 @@
 use std::sync::mpsc::channel;
-use std::thread;
+use std::thread::{self, sleep};
 
 use log::info;
 use rand::Rng;
@@ -55,7 +55,7 @@ fn main() {
                 tx.send(entry).unwrap();
 
                 if index % 10000 == 0 {
-                    info!("{} entries were inserted", index);
+                    info!("thread 1: {} entries were inserted", index);
                 }
             }
         });
@@ -67,20 +67,23 @@ fn main() {
                 tx.send(entry).unwrap();
 
                 if index % 10000 == 0 {
-                    info!("{} entries were inserted", index);
+                    info!("thread 2: {} entries were inserted", index);
                 }
             }
         });
 
         for index in 0..TOTAL_VALUE {
-            let entry = rx.recv().unwrap();
+            match rx.try_recv() {
+                Ok(entry) => {
+                    if index % 10000 == 0 {
+                        info!("searching index={}", index);
+                    }
 
-            if index % 10000 == 0 {
-                info!("searching index={}", index);
+                    let result = table.get(entry.get_key()).unwrap();
+                    assert_eq!(result.unwrap(), *entry.get_value());
+                }
+                Err(_) => break,
             }
-
-            let result = table.get(entry.get_key()).unwrap();
-            assert_eq!(result.unwrap(), *entry.get_value());
         }
     });
 }
