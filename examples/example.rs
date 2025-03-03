@@ -46,10 +46,11 @@ fn main() {
     let table = OrderedStorage::new(table_name, config);
 
     let (tx, rx) = channel();
-
+    let mid = TOTAL_VALUE / 2;
+    
     thread::scope(|s| {
         s.spawn(|| {
-            for index in 0..TOTAL_VALUE / 2 {
+            for index in 0..mid {
                 let entry = random_entry();
                 table.put(entry.clone()).unwrap();
                 tx.send(entry).unwrap();
@@ -61,7 +62,7 @@ fn main() {
         });
 
         s.spawn(|| {
-            for index in TOTAL_VALUE / 2..TOTAL_VALUE {
+            for index in mid..TOTAL_VALUE {
                 let entry = random_entry();
                 table.put(entry.clone()).unwrap();
                 tx.send(entry).unwrap();
