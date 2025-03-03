@@ -84,7 +84,7 @@ fn main() {
                     let result = table.get(entry.get_key()).unwrap();
                     let expected = entry.get_value();
                     if result.is_none() {
-                        // assert!(false, "expected {:?}", *expected);
+                        assert!(false, "expected {:?}", *expected);
                         count += 1;
                         continue;
                     }
