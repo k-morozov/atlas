@@ -182,19 +182,20 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
             return Ok(None);
         };
 
-        let _offset = self
-            .fd
-            .lock()
-            .unwrap()
-            .borrow_mut()
-            .seek(SeekFrom::Start(offset.pos as u64))?;
+        let mut buffer = {
+            let lock = self.fd.lock().unwrap();
 
-        assert_ne!(offset.size, 0);
+            let _offset = lock.borrow_mut().seek(SeekFrom::Start(offset.pos as u64))?;
 
-        // read row with entry
-        let mut buffer = vec![0u8; offset.size as usize];
-        let bytes: usize = self.fd.lock().unwrap().borrow_mut().read(&mut buffer)?;
-        assert_eq!(bytes, offset.size as usize);
+            assert_ne!(offset.size, 0);
+
+            // read row with entry
+            let mut buffer = vec![0u8; offset.size as usize];
+            let bytes: usize = lock.borrow_mut().read(&mut buffer)?;
+            assert_eq!(bytes, offset.size as usize);
+
+            buffer
+        };
 
         // parse metadata
         let key_len = read_u32(&buffer[0..])? as usize;

@@ -65,6 +65,8 @@ impl DiskTablesShards {
         level: Levels,
         disk_table_path: &Path,
     ) -> Arc<dyn ReaderDiskTable<FlexibleField, FlexibleField>> {
+        debug!("call merge_level");
+
         let lock = self.table.read().unwrap();
 
         assert!(lock.contains_key(&level));
