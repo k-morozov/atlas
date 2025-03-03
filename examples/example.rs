@@ -1,7 +1,7 @@
 use std::sync::mpsc::channel;
 use std::thread;
 
-use log::info;
+use log::{debug, info};
 use rand::Rng;
 
 use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
@@ -73,6 +73,7 @@ fn main() {
             }
         });
 
+        let mut count = 0;
         for index in 0..TOTAL_VALUE {
             match rx.recv() {
                 Ok(entry) => {
@@ -84,7 +85,7 @@ fn main() {
                     let expected = entry.get_value();
                     if result.is_none() {
                         // assert!(false, "expected {:?}", *expected);
-                        info!("broken entry");
+                        count += 1;
                         continue;
                     }
 
@@ -93,5 +94,7 @@ fn main() {
                 Err(er) => panic!("Error: {:?}", er),
             }
         }
+
+        debug!("count broken entries={}", count);
     });
 }
