@@ -77,7 +77,7 @@ fn main() {
             match rx.recv() {
                 Ok(entry) => {
                     if index % 10000 == 0 {
-                        info!("searching index={}", index);
+                        info!("thread 3: searching index={}", index);
                     }
 
                     let result = table.get(entry.get_key()).unwrap();
@@ -87,7 +87,7 @@ fn main() {
                         info!("broken entry");
                         continue;
                     }
-                    
+
                     assert_eq!(result.unwrap(), *expected, "expected {:?}", *expected);
                 }
                 Err(er) => panic!("Error: {:?}", er),

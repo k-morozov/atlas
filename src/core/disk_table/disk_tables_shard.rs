@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use log::debug;
+
 use crate::errors::Result;
 
 use crate::core::{
@@ -46,16 +48,15 @@ impl DiskTablesShards {
         if no_level {
             lock.insert(level, ShardLevel::new());
         }
-        lock.get(&level)
-            .expect("we checked key early")
-            .push(disk_table);
+
+        let shard = lock.get(&level).expect("we checked key early");
+
+        shard.push(disk_table);
+
+        debug!("count tables={} in level={}", shard.len(), level);
 
         // @todo return status?
     }
-
-    // pub fn get_disk_table_by_level(&self, level: Levels) -> Option<ReaderDiskTablePtr> {
-    //     todo!()
-    // }
 
     pub fn merge_level(
         &self,
