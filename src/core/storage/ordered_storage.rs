@@ -206,6 +206,8 @@ impl OrderedStorage {
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: &Path,
     ) -> Option<ReaderDiskTablePtr> {
+        debug!("call create_merged_disk_table");
+
         if !disk_tables.is_ready_to_merge(merging_level) {
             return None;
         }
@@ -233,7 +235,7 @@ impl Drop for OrderedStorage {
 
         match self.flush_worker.take().unwrap().join() {
             Ok(_) => info!("Flush worker was joined"),
-            Err(er) => error!("Failed join flush worker with error={:?}", er),
+            Err(er) => error!("Drop storage: failed join flush worker with error={:?}", er),
         }
     }
 }

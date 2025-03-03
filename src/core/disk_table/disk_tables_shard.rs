@@ -36,6 +36,8 @@ impl DiskTablesShards {
     }
 
     pub fn put_disk_table_by_level(&self, level: Levels, disk_table: ReaderDiskTablePtr) {
+        debug!("call put_disk_table_by_level");
+
         let mut no_level = false;
         {
             let lock = self.table.read().unwrap();
@@ -110,6 +112,8 @@ impl DiskTablesShards {
     }
 
     pub fn remove_tables_from_level(&self, level: Levels) -> Result<()> {
+        debug!("call remove_tables_from_level");
+
         let lock = self.table.read().unwrap();
 
         assert!(lock.contains_key(&level));
