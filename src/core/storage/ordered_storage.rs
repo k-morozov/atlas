@@ -13,22 +13,19 @@ use log::{error, info};
 use crate::{
     core::{
         disk_table::{
-            disk_table::{
-                get_disk_table_name, get_disk_table_name_by_level, get_disk_table_path,
-                ReaderDiskTableIterator,
-            },
+            disk_table::{get_disk_table_name, get_disk_table_name_by_level, get_disk_table_path},
+            disk_tables_shard::{self, DiskTablesShards},
             local::{
                 local_disk_table_builder::DiskTableBuilder,
                 reader_local_disk_table::ReaderDiskTablePtr,
             },
-            shard_level::{self, DiskTablesShards},
             utils,
         },
         entry::flexible_user_entry::FlexibleUserEntry,
         field::FlexibleField,
         mem_table::MemoryTable,
         storage::{
-            config::{self, StorageConfig, DEFAULT_TEST_TABLES_PATH},
+            config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
             metadata::StorageMetadata,
             storage::Storage,
         },
@@ -132,7 +129,7 @@ impl OrderedStorage {
         mem_table: Arc<RwLock<MemoryTable>>,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
-        disk_tables: &mut Arc<shard_level::DiskTablesShards>,
+        disk_tables: &mut Arc<DiskTablesShards>,
     ) {
         let mut mem_table = mem_table.write().unwrap();
 
@@ -157,7 +154,8 @@ impl OrderedStorage {
 
         match segment_from_mem_table {
             Ok(disk_table) => {
-                disk_tables.put_disk_table_by_level(shard_level::SEGMENTS_MIN_LEVEL, disk_table);
+                disk_tables
+                    .put_disk_table_by_level(disk_tables_shard::SEGMENTS_MIN_LEVEL, disk_table);
             }
             Err(er) => panic!("Failed save_mem_table. {}", er),
         }
@@ -168,12 +166,14 @@ impl OrderedStorage {
     }
 
     fn merge_disk_tables(
-        disk_tables: Arc<shard_level::DiskTablesShards>,
+        disk_tables: Arc<DiskTablesShards>,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
     ) {
-        for merging_level in shard_level::SEGMENTS_MIN_LEVEL..=shard_level::SEGMENTS_MAX_LEVEL {
-            let level_for_new_sg = if merging_level != shard_level::SEGMENTS_MAX_LEVEL {
+        for merging_level in
+            disk_tables_shard::SEGMENTS_MIN_LEVEL..=disk_tables_shard::SEGMENTS_MAX_LEVEL
+        {
+            let level_for_new_sg = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL {
                 merging_level + 1
             } else {
                 merging_level
@@ -197,8 +197,8 @@ impl OrderedStorage {
     }
 
     fn create_merged_disk_table(
-        disk_tables: &Arc<shard_level::DiskTablesShards>,
-        merging_level: shard_level::Levels,
+        disk_tables: &Arc<DiskTablesShards>,
+        merging_level: disk_tables_shard::Levels,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: &Path,
     ) -> Option<ReaderDiskTablePtr> {
@@ -206,7 +206,7 @@ impl OrderedStorage {
             return None;
         }
 
-        let level_for_new_sg = if merging_level != shard_level::SEGMENTS_MAX_LEVEL {
+        let level_for_new_sg = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL {
             merging_level + 1
         } else {
             merging_level

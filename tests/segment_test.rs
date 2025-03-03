@@ -6,17 +6,21 @@ use std::{
     thread::{self, Scope, ScopedJoinHandle},
 };
 
-use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
-use kvs::core::storage::ordered_storage::OrderedStorage;
-use kvs::core::storage::storage::Storage;
 use tempfile::Builder;
 
-use kvs::core::disk_table::disk_table::get_disk_table_name;
-use kvs::core::disk_table::id::DiskTableID;
-use kvs::core::disk_table::local::local_disk_table_builder::DiskTableBuilder;
-use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
-use kvs::core::field::FlexibleField;
-use kvs::core::storage::config::StorageConfig;
+use kvs::core::{
+    disk_table::{
+        disk_table::get_disk_table_name, id::DiskTableID,
+        local::local_disk_table_builder::DiskTableBuilder,
+    },
+    entry::flexible_user_entry::FlexibleUserEntry,
+    field::FlexibleField,
+    storage::{
+        config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
+        ordered_storage::OrderedStorage,
+        storage::Storage,
+    },
+};
 
 fn spawn_put_entries_for_range<'a, 'b>(
     s: &'a Scope<'a, 'b>,

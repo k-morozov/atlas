@@ -1,3 +1,6 @@
+use std::sync::mpsc::channel;
+use std::thread;
+
 use log::info;
 use rand::Rng;
 
@@ -23,6 +26,13 @@ fn generate_random_bytes(start: u32, finish: u32) -> Vec<u8> {
     random_bytes
 }
 
+fn random_entry() -> FlexibleUserEntry {
+    let key = FlexibleField::new(generate_random_bytes(64, 128));
+    let value = FlexibleField::new(generate_random_bytes(512, 1024));
+
+    FlexibleUserEntry::new(key, value)
+}
+
 fn main() {
     init();
 
@@ -35,34 +45,42 @@ fn main() {
 
     let table = OrderedStorage::new(table_name, config);
 
-    let mut expected = Vec::with_capacity(TOTAL_VALUE);
+    let (tx, rx) = channel();
 
-    // @todo update
-    for index in 0..TOTAL_VALUE {
-        let key = FlexibleField::new(generate_random_bytes(64, 128));
-        let value = FlexibleField::new(generate_random_bytes(512, 1024));
+    thread::scope(|s| {
+        s.spawn(|| {
+            for index in 0..TOTAL_VALUE / 2 {
+                let entry = random_entry();
+                table.put(entry.clone()).unwrap();
+                tx.send(entry).unwrap();
 
-        let entry = FlexibleUserEntry::new(key, value);
-        table.put(entry.clone()).unwrap();
+                if index % 10000 == 0 {
+                    info!("{} entries were inserted", index);
+                }
+            }
+        });
 
-        expected.push(entry);
+        s.spawn(|| {
+            for index in TOTAL_VALUE / 2..TOTAL_VALUE {
+                let entry = random_entry();
+                table.put(entry.clone()).unwrap();
+                tx.send(entry).unwrap();
 
-        if index % 10000 == 0 {
-            info!("{} entries were inserted", index);
+                if index % 10000 == 0 {
+                    info!("{} entries were inserted", index);
+                }
+            }
+        });
+
+        for index in 0..TOTAL_VALUE {
+            let entry = rx.recv().unwrap();
+
+            if index % 10000 == 0 {
+                info!("searching index={}", index);
+            }
+
+            let result = table.get(entry.get_key()).unwrap();
+            assert_eq!(result.unwrap(), *entry.get_value());
         }
-    }
-
-    info!("Data was inserted.");
-
-    for index in (0..TOTAL_VALUE).step_by(10) {
-        if index % 10000 == 0 {
-            info!("searching index={}", index);
-        }
-
-        let expected_entry = &expected[index];
-
-        let result = table.get(expected_entry.get_key()).unwrap();
-
-        assert_eq!(result.unwrap(), *expected_entry.get_value());
-    }
+    });
 }

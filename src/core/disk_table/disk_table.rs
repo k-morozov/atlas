@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use super::disk_tables_shard::Levels;
 use super::id::DiskTableID;
-use super::shard_level::Levels;
 use crate::core::entry::user_entry::UserEntry;
 use crate::errors::Result;
 
