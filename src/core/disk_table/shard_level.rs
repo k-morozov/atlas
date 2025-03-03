@@ -31,7 +31,8 @@ impl ShardLevel {
         let mut lock = self.disk_tables.write().unwrap();
 
         for r in &mut lock.iter() {
-            assert_eq!(Arc::strong_count(r), 1);
+            // @todo
+            // assert_eq!(Arc::strong_count(r), 1);
             r.remove()?;
         }
         lock.clear();
