@@ -8,7 +8,7 @@ use std::{
     thread,
 };
 
-use log::{error, info};
+use log::{debug, error, info};
 
 use crate::{
     core::{
@@ -131,6 +131,8 @@ impl OrderedStorage {
         storage_path: PathBuf,
         disk_tables: &mut Arc<DiskTablesShards>,
     ) {
+        debug!("call save_mem_table");
+
         let mut mem_table = mem_table.write().unwrap();
 
         if mem_table.current_size() == 0 {
@@ -170,6 +172,8 @@ impl OrderedStorage {
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
     ) {
+        debug!("call merge_disk_tables");
+
         for merging_level in
             disk_tables_shard::SEGMENTS_MIN_LEVEL..=disk_tables_shard::SEGMENTS_MAX_LEVEL
         {
