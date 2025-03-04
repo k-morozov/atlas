@@ -268,7 +268,7 @@ impl Storage for OrderedStorage {
             return Ok(Some(value));
         }
 
-        self.disk_tables.get(key)
+        self.shards.get(key)
     }
 }
 
