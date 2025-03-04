@@ -1,5 +1,5 @@
 use std::sync::mpsc::channel;
-use std::thread;
+use std::{fs, io, thread};
 
 use log::{debug, info};
 use rand::Rng;
@@ -10,7 +10,7 @@ use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };
 
-const TOTAL_VALUE: usize = 100_000;
+const TOTAL_VALUE: usize = 500_000;
 
 pub fn init() {
     simple_logger::SimpleLogger::new().init().unwrap();
@@ -33,17 +33,21 @@ fn random_entry() -> FlexibleUserEntry {
     FlexibleUserEntry::new(key, value)
 }
 
-fn main() {
+fn main() -> io::Result<()> {
     init();
 
-    info!("start example");
+    info!("Prepare dir for example");
 
-    let table_name = "/tmp/kvs/examples/example_table";
+    let storage_path = "/tmp/kvs/examples/example_table";
+    fs::remove_dir_all(storage_path)?;
+
+    info!("Start example");
+
     let mut config = StorageConfig::default_config();
     config.mem_table_size = 256;
     config.disk_tables_limit_by_level = 4;
 
-    let table = OrderedStorage::new(table_name, config);
+    let table = OrderedStorage::new(storage_path, config);
 
     let (tx, rx) = channel();
     let mid = TOTAL_VALUE / 2;
@@ -83,7 +87,7 @@ fn main() {
                     let result = table.get(entry.get_key()).unwrap();
                     let expected = entry.get_value();
                     if result.is_none() {
-                        assert!(false, "index={}, expected {:?}", index, *expected);
+                        assert!(false, "result is none, index={}, expected {:?}", index, *expected);
                         continue;
                     }
 
@@ -93,4 +97,6 @@ fn main() {
             }
         }
     });
+
+    Ok(())
 }
