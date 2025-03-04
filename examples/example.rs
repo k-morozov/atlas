@@ -39,7 +39,10 @@ fn main() -> io::Result<()> {
     info!("Prepare dir for example");
 
     let storage_path = "/tmp/kvs/examples/example_table";
-    fs::remove_dir_all(storage_path)?;
+
+    if fs::exists(storage_path)? {
+        fs::remove_dir_all(storage_path)?;
+    }
 
     info!("Start example");
 
