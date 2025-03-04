@@ -267,11 +267,6 @@ impl Storage for OrderedStorage {
 
         // refactoring
         if lock.need_flush() {
-            debug!(
-                "need flush: {}/{}",
-                lock.current_size(),
-                lock.max_table_size()
-            );
             // cas
             self.need_flush.store(true, Ordering::SeqCst);
         }
