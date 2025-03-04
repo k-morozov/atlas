@@ -67,6 +67,9 @@ impl ReaderFlexibleDiskTable {
             )
         };
 
+        assert_ne!(index_blocks.len(), 0);
+        assert_ne!(index_blocks.size(), 0);
+
         Arc::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
             fd: Mutex::new(RefCell::new(fd)),

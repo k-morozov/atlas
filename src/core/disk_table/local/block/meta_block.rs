@@ -71,6 +71,7 @@ impl IndexBlocks {
     }
 
     pub fn with_capacity(n: usize) -> Self {
+        assert_ne!(n, 0);
         Self {
             data: Vec::<IndexBlock>::with_capacity(n),
         }
@@ -100,14 +101,14 @@ impl IndexBlocks {
 
 impl block::WriteToTable for IndexBlocks {
     fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+        assert_ne!(0, self.data.len());
+
         for index_block in &self.data {
             index_block.write_to(ptr)?;
         }
 
         ptr.write(&(self.size()).to_le_bytes())?;
-
         ptr.write(&(self.data.len() as u32).to_le_bytes())?;
-        assert_ne!(0, self.data.len());
 
         Ok(())
     }

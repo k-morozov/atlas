@@ -143,6 +143,10 @@ impl OrderedStorage {
 
         debug!("call save_mem_table, size={}", lock.current_size());
 
+        if lock.current_size() == 0 {
+            return;
+        }
+
         let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
         let disk_table_name = get_disk_table_name(disk_table_id);
         let disk_table_path = get_disk_table_path(storage_path.as_path(), &disk_table_name);
@@ -353,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn test_some_segments_with_restart() -> io::Result<()> {
+    fn test_some_disk_tables_with_restart() -> io::Result<()> {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
         let table_path = tmp_dir.path().join("test_some_segments_with_restart");
 

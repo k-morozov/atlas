@@ -115,6 +115,9 @@ impl DiskTableBuilder {
             data_block.reset();
         };
 
+        assert_ne!(self.index_blocks.len(), 0);
+        assert_ne!(self.index_blocks.size(), 0);
+
         self.index_blocks.write_to(disk_table)?;
 
         // write index_entries
@@ -135,12 +138,15 @@ impl DiskTableBuilder {
         // write index_entries size
         disk_table.write(&(self.index_entries.len() as u32).to_le_bytes())?;
 
-        let Some(mut writer) = self.building_disk_table.take() else {
-            panic!("Broken building_disk_table")
-        };
+        // @todo close?
+        {
+            let Some(mut writer) = self.building_disk_table.take() else {
+                panic!("Broken building_disk_table")
+            };
 
-        if let Err(er) = writer.flush() {
-            panic!("Failed flush in builder: {}", er)
+            if let Err(er) = writer.flush() {
+                panic!("Failed flush in builder: {}", er)
+            }
         }
 
         Ok(ReaderFlexibleDiskTable::new(self.disk_table_path.as_path()))
