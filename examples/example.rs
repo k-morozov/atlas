@@ -10,7 +10,7 @@ use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };
 
-const TOTAL_VALUE: usize = 500_000;
+const TOTAL_VALUE: usize = 100_000;
 
 pub fn init() {
     simple_logger::SimpleLogger::new().init().unwrap();

@@ -8,7 +8,7 @@ use std::{
     thread,
 };
 
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 
 use crate::{
     core::{
@@ -175,7 +175,7 @@ impl OrderedStorage {
     }
 
     fn merge_disk_tables(
-        disk_tables: Arc<DiskTablesShards>,
+        shards: Arc<DiskTablesShards>,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
     ) {
@@ -192,7 +192,7 @@ impl OrderedStorage {
             };
 
             let merged_disk_table = match Self::create_merged_disk_table(
-                &disk_tables,
+                &shards,
                 merging_level,
                 metadata.clone(),
                 storage_path.as_path(),
@@ -201,7 +201,7 @@ impl OrderedStorage {
                 None => break,
             };
 
-            if let Err(er) = disk_tables.remove_tables_from_level(merging_level) {
+            if let Err(er) = shards.remove_tables_from_level(merging_level) {
                 panic!("failed remove merging disk table: error={}", er)
             }
 
@@ -212,22 +212,17 @@ impl OrderedStorage {
                 merged_disk_table.as_ref().count_entries()
             );
 
-            disk_tables.put_disk_table_by_level(level_for_new_disk_table, merged_disk_table);
+            shards.put_disk_table_by_level(level_for_new_disk_table, merged_disk_table);
         }
     }
 
     fn create_merged_disk_table(
-        disk_tables: &Arc<DiskTablesShards>,
+        shards: &Arc<DiskTablesShards>,
         merging_level: disk_tables_shard::Levels,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: &Path,
     ) -> Option<ReaderDiskTablePtr> {
-        debug!(
-            "call create_merged_disk_table, merging_level={}",
-            merging_level
-        );
-
-        if !disk_tables.is_ready_to_merge(merging_level) {
+        if !shards.is_ready_to_merge(merging_level) {
             return None;
         }
 
@@ -241,7 +236,7 @@ impl OrderedStorage {
         let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
         let disk_table_path = get_disk_table_path(storage_path, &segment_name);
 
-        let merged_disk_table = disk_tables.merge_level(merging_level, disk_table_path.as_path());
+        let merged_disk_table = shards.merge_level(merging_level, disk_table_path.as_path());
 
         Some(merged_disk_table)
     }
@@ -280,6 +275,7 @@ impl Storage for OrderedStorage {
 
     fn get(&self, key: &FlexibleField) -> Result<Option<FlexibleField>, Error> {
         if self.shutdown.load(Ordering::SeqCst) {
+            debug!("Storage was shutdowned. None.");
             return Ok(None);
         }
         if let Some(value) = self.m_mem_table.read().unwrap().get_value(key) {

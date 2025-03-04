@@ -25,13 +25,13 @@ pub const SEGMENTS_MAX_LEVEL: Levels = 3;
 pub type Levels = u8;
 
 pub struct DiskTablesShards {
-    table: RwLock<BTreeMap<Levels, ShardLevel>>,
+    shards: RwLock<BTreeMap<Levels, ShardLevel>>,
 }
 
 impl DiskTablesShards {
     pub fn new() -> Self {
         Self {
-            table: RwLock::new(BTreeMap::new()),
+            shards: RwLock::new(BTreeMap::new()),
         }
     }
 
@@ -40,13 +40,13 @@ impl DiskTablesShards {
 
         let mut no_level = false;
         {
-            let lock = self.table.read().unwrap();
+            let lock = self.shards.read().unwrap();
             if !lock.contains_key(&level) {
                 no_level = true;
             }
         }
 
-        let mut lock = self.table.write().unwrap();
+        let mut lock = self.shards.write().unwrap();
         if no_level {
             lock.insert(level, ShardLevel::new());
         }
@@ -55,7 +55,7 @@ impl DiskTablesShards {
 
         shard.push(disk_table);
 
-        debug!("count tables={} in level={}", shard.len(), level);
+        debug!("count tables={} in level={} after push merged disk table", shard.len(), level);
 
         // @todo return status?
     }
@@ -65,9 +65,7 @@ impl DiskTablesShards {
         level: Levels,
         disk_table_path: &Path,
     ) -> Arc<dyn ReaderDiskTable<FlexibleField, FlexibleField>> {
-        debug!("call merge_level");
-
-        let lock = self.table.read().unwrap();
+        let lock = self.shards.read().unwrap();
 
         assert!(lock.contains_key(&level));
 
@@ -116,7 +114,7 @@ impl DiskTablesShards {
     pub fn remove_tables_from_level(&self, level: Levels) -> Result<()> {
         debug!("remove tables from level={}", level);
 
-        let lock = self.table.read().unwrap();
+        let lock = self.shards.read().unwrap();
 
         assert!(lock.contains_key(&level));
 
@@ -127,7 +125,7 @@ impl DiskTablesShards {
     }
 
     pub fn is_ready_to_merge(&self, level: Levels) -> bool {
-        let lock = self.table.read().unwrap();
+        let lock = self.shards.read().unwrap();
 
         if !lock.contains_key(&level) {
             debug!("no key");
@@ -144,7 +142,7 @@ impl DiskTablesShards {
 
     // workaround
     pub fn get(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        for (_level, shard) in self.table.read().unwrap().iter() {
+        for (_level, shard) in self.shards.read().unwrap().iter() {
             for segment in shard.iter() {
                 match segment.read(key) {
                     Ok(v) => match v {
