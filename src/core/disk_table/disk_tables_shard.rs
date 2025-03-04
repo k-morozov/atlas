@@ -114,7 +114,7 @@ impl DiskTablesShards {
     }
 
     pub fn remove_tables_from_level(&self, level: Levels) -> Result<()> {
-        debug!("call remove_tables_from_level");
+        debug!("remove tables from level={}", level);
 
         let lock = self.table.read().unwrap();
 

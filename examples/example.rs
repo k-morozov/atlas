@@ -62,7 +62,7 @@ fn main() {
         });
 
         s.spawn(|| {
-            for index in mid..TOTAL_VALUE {
+            for index in 0..mid {
                 let entry = random_entry();
                 table.put(&entry).unwrap();
                 tx.send(entry).unwrap();

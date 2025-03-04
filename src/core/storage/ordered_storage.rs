@@ -92,13 +92,25 @@ impl OrderedStorage {
 
             flush_worker: Some(thread::spawn(move || loop {
                 let mut tables = shards.clone();
+
                 while !need_flush.load(Ordering::SeqCst) && !shutdown.load(Ordering::SeqCst) {
-                    thread::sleep(std::time::Duration::from_secs(2));
+                    thread::sleep(std::time::Duration::from_secs(1));
                 }
 
                 if shutdown.load(Ordering::SeqCst) && !need_flush.load(Ordering::SeqCst) {
+                    info!("call last flush");
+
+                    Self::save_mem_table(
+                        m_mem_table.clone(),
+                        metadata.clone(),
+                        storage_path.clone(),
+                        &mut tables,
+                    );
+
+                    Self::merge_disk_tables(shards.clone(), metadata.clone(), storage_path.clone());
                     return;
                 }
+                
                 info!("call flush");
 
                 Self::save_mem_table(
@@ -108,11 +120,7 @@ impl OrderedStorage {
                     &mut tables,
                 );
 
-                Self::merge_disk_tables(
-                    shards.clone(),
-                    metadata.clone(),
-                    storage_path.clone(),
-                );
+                Self::merge_disk_tables(shards.clone(), metadata.clone(), storage_path.clone());
 
                 need_flush.store(false, Ordering::SeqCst);
             })),
@@ -135,10 +143,6 @@ impl OrderedStorage {
 
         debug!("call save_mem_table, size={}", lock.current_size());
 
-        if lock.current_size() == 0 {
-            return;
-        }
-
         let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
         let disk_table_name = get_disk_table_name(disk_table_id);
         let disk_table_path = get_disk_table_path(storage_path.as_path(), &disk_table_name);
@@ -156,8 +160,7 @@ impl OrderedStorage {
 
         match disk_table_from_mem_table {
             Ok(disk_table) => {
-                shards
-                    .put_disk_table_by_level(disk_tables_shard::SEGMENTS_MIN_LEVEL, disk_table);
+                shards.put_disk_table_by_level(disk_tables_shard::SEGMENTS_MIN_LEVEL, disk_table);
             }
             Err(er) => panic!("Failed save_mem_table. {}", er),
         }
@@ -206,7 +209,10 @@ impl OrderedStorage {
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: &Path,
     ) -> Option<ReaderDiskTablePtr> {
-        debug!("call create_merged_disk_table, merging_level={}", merging_level);
+        debug!(
+            "call create_merged_disk_table, merging_level={}",
+            merging_level
+        );
 
         if !disk_tables.is_ready_to_merge(merging_level) {
             return None;
@@ -252,7 +258,11 @@ impl Storage for OrderedStorage {
 
         // refactoring
         if m_mem_table.current_size() == m_mem_table.max_table_size() {
-            debug!("need flush: {}/{}", m_mem_table.current_size(), m_mem_table.max_table_size());
+            debug!(
+                "need flush: {}/{}",
+                m_mem_table.current_size(),
+                m_mem_table.max_table_size()
+            );
             // cas
             self.need_flush.store(true, Ordering::SeqCst);
         }
