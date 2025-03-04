@@ -33,7 +33,7 @@ fn test_mpsc_table() -> io::Result<()> {
     let table_name = "/tmp/kvs/test/simple_flexible_segment";
     let mut config = StorageConfig::default_config();
     config.mem_table_size = 256;
-    config.disk_tables_limit_by_level = 16;
+    config.disk_tables_limit_by_level = 4;
 
     let table = OrderedStorage::new(table_name, config);
 

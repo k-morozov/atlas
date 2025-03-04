@@ -41,7 +41,7 @@ fn main() {
     let table_name = "/tmp/kvs/examples/example_table";
     let mut config = StorageConfig::default_config();
     config.mem_table_size = 256;
-    config.disk_tables_limit_by_level = 16;
+    config.disk_tables_limit_by_level = 4;
 
     let table = OrderedStorage::new(table_name, config);
 
@@ -73,7 +73,6 @@ fn main() {
             }
         });
 
-        let mut count = 0;
         for index in 0..TOTAL_VALUE {
             match rx.recv() {
                 Ok(entry) => {
@@ -84,8 +83,7 @@ fn main() {
                     let result = table.get(entry.get_key()).unwrap();
                     let expected = entry.get_value();
                     if result.is_none() {
-                        // assert!(false, "expected {:?}", *expected);
-                        count += 1;
+                        assert!(false, "expected {:?}", *expected);
                         continue;
                     }
 
@@ -94,7 +92,5 @@ fn main() {
                 Err(er) => panic!("Error: {:?}", er),
             }
         }
-
-        debug!("count broken entries={}", count);
     });
 }
