@@ -110,7 +110,7 @@ impl OrderedStorage {
                     Self::merge_disk_tables(shards.clone(), metadata.clone(), storage_path.clone());
                     return;
                 }
-                
+
                 info!("call flush");
 
                 Self::save_mem_table(
@@ -180,7 +180,8 @@ impl OrderedStorage {
         {
             debug!("call merge_disk_tables, merging_level={}", merging_level);
 
-            let level_for_new_sg = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL {
+            let level_for_new_disk_table = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL
+            {
                 merging_level + 1
             } else {
                 merging_level
@@ -199,7 +200,15 @@ impl OrderedStorage {
             if let Err(er) = disk_tables.remove_tables_from_level(merging_level) {
                 panic!("failed remove merging disk table: error={}", er)
             }
-            disk_tables.put_disk_table_by_level(level_for_new_sg, merged_disk_table);
+
+            debug!(
+                "merged_disk_table: level={}, path={}, entries={}",
+                level_for_new_disk_table,
+                merged_disk_table.as_ref().get_path().display(),
+                merged_disk_table.as_ref().count_entries()
+            );
+
+            disk_tables.put_disk_table_by_level(level_for_new_disk_table, merged_disk_table);
         }
     }
 

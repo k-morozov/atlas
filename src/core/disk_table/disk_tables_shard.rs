@@ -129,14 +129,16 @@ impl DiskTablesShards {
     pub fn is_ready_to_merge(&self, level: Levels) -> bool {
         let lock = self.table.read().unwrap();
 
-        debug!("call is_ready_to_merge, level={}", level);
-
         if !lock.contains_key(&level) {
             debug!("no key");
             return false;
         }
 
-        debug!("size={}", lock[&level].len());
+        debug!(
+            "call is_ready_to_merge, level={}, size={}",
+            level,
+            lock[&level].len()
+        );
         lock[&level].len() == config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL
     }
 
