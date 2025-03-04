@@ -8,7 +8,7 @@ use std::{
     thread,
 };
 
-use log::{debug, error, info, trace};
+use log::{debug, error, info};
 
 use crate::{
     core::{
@@ -120,7 +120,7 @@ impl OrderedStorage {
                     &mut tables,
                 );
 
-                Self::merge_disk_tables(shards.clone(), metadata.clone(), storage_path.clone());
+                // Self::merge_disk_tables(shards.clone(), metadata.clone(), storage_path.clone());
 
                 need_flush.store(false, Ordering::SeqCst);
             })),
