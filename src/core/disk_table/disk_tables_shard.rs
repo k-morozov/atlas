@@ -36,7 +36,7 @@ impl DiskTablesShards {
     }
 
     pub fn put_disk_table_by_level(&self, level: Levels, disk_table: ReaderDiskTablePtr) {
-        debug!("call put_disk_table_by_level");
+        debug!("call put_disk_table_by_level with level={}", level);
 
         let mut no_level = false;
         {
@@ -129,9 +129,14 @@ impl DiskTablesShards {
     pub fn is_ready_to_merge(&self, level: Levels) -> bool {
         let lock = self.table.read().unwrap();
 
+        debug!("call is_ready_to_merge, level={}", level);
+
         if !lock.contains_key(&level) {
+            debug!("no key");
             return false;
         }
+
+        debug!("size={}", lock[&level].len());
         lock[&level].len() == config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL
     }
 

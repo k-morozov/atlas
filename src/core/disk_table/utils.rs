@@ -21,7 +21,7 @@ fn extract_level(disk_table: &str) -> Option<u8> {
 pub fn get_disk_tables(table_path: &Path) -> Result<DiskTablesShards> {
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
 
-    let disk_tables = fs::read_dir(segment_dir)?
+    let shards = fs::read_dir(segment_dir)?
         .map(|entry| {
             let result = match entry {
                 Ok(entry) => {
@@ -52,5 +52,5 @@ pub fn get_disk_tables(table_path: &Path) -> Result<DiskTablesShards> {
             table
         });
 
-    Ok(disk_tables)
+    Ok(shards)
 }

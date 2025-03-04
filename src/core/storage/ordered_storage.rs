@@ -50,7 +50,7 @@ pub struct OrderedStorage {
     flush_worker: Option<thread::JoinHandle<()>>,
     shutdown: Arc<AtomicBool>,
     metadata: Arc<Mutex<StorageMetadata>>,
-    disk_tables: Arc<DiskTablesShards>,
+    shards: Arc<DiskTablesShards>,
     config: StorageConfig,
 }
 
@@ -64,7 +64,7 @@ impl OrderedStorage {
             )
         }
 
-        let Ok(disk_tables) = utils::get_disk_tables(storage_path.as_ref()) else {
+        let Ok(shards) = utils::get_disk_tables(storage_path.as_ref()) else {
             panic!("Faield read disk tables")
         };
 
@@ -76,7 +76,7 @@ impl OrderedStorage {
         let need_flush = Arc::new(AtomicBool::new(false));
         let shutdown = Arc::new(AtomicBool::new(false));
 
-        let disk_tables = Arc::new(disk_tables);
+        let shards = Arc::new(shards);
 
         let storage_path = storage_path.as_ref().to_path_buf();
 
@@ -87,11 +87,11 @@ impl OrderedStorage {
             shutdown: shutdown.clone(),
             storage_path: storage_path.clone(),
             metadata: metadata.clone(),
-            disk_tables: disk_tables.clone(),
+            shards: shards.clone(),
             config,
 
             flush_worker: Some(thread::spawn(move || loop {
-                let mut tables = disk_tables.clone();
+                let mut tables = shards.clone();
                 while !need_flush.load(Ordering::SeqCst) && !shutdown.load(Ordering::SeqCst) {
                     thread::sleep(std::time::Duration::from_secs(2));
                 }
@@ -109,7 +109,7 @@ impl OrderedStorage {
                 );
 
                 Self::merge_disk_tables(
-                    disk_tables.clone(),
+                    shards.clone(),
                     metadata.clone(),
                     storage_path.clone(),
                 );
@@ -129,21 +129,21 @@ impl OrderedStorage {
         mem_table: Arc<RwLock<MemoryTable>>,
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
-        disk_tables: &mut Arc<DiskTablesShards>,
+        shards: &mut Arc<DiskTablesShards>,
     ) {
-        debug!("call save_mem_table");
+        let mut lock = mem_table.write().unwrap();
 
-        let mut mem_table = mem_table.write().unwrap();
+        debug!("call save_mem_table, size={}", lock.current_size());
 
-        if mem_table.current_size() == 0 {
+        if lock.current_size() == 0 {
             return;
         }
 
         let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
-        let segment_name = get_disk_table_name(disk_table_id);
-        let disk_table_path = get_disk_table_path(storage_path.as_path(), &segment_name);
+        let disk_table_name = get_disk_table_name(disk_table_id);
+        let disk_table_path = get_disk_table_path(storage_path.as_path(), &disk_table_name);
 
-        let segment_from_mem_table = mem_table
+        let disk_table_from_mem_table = lock
             .into_iter()
             .fold(
                 DiskTableBuilder::new(disk_table_path.as_path()),
@@ -154,15 +154,15 @@ impl OrderedStorage {
             )
             .build();
 
-        match segment_from_mem_table {
+        match disk_table_from_mem_table {
             Ok(disk_table) => {
-                disk_tables
+                shards
                     .put_disk_table_by_level(disk_tables_shard::SEGMENTS_MIN_LEVEL, disk_table);
             }
             Err(er) => panic!("Failed save_mem_table. {}", er),
         }
 
-        mem_table.clear();
+        lock.clear();
 
         metadata.lock().unwrap().sync_disk();
     }
@@ -172,11 +172,11 @@ impl OrderedStorage {
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: PathBuf,
     ) {
-        debug!("call merge_disk_tables");
-
         for merging_level in
             disk_tables_shard::SEGMENTS_MIN_LEVEL..=disk_tables_shard::SEGMENTS_MAX_LEVEL
         {
+            debug!("call merge_disk_tables, merging_level={}", merging_level);
+
             let level_for_new_sg = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL {
                 merging_level + 1
             } else {
@@ -206,7 +206,7 @@ impl OrderedStorage {
         metadata: Arc<Mutex<StorageMetadata>>,
         storage_path: &Path,
     ) -> Option<ReaderDiskTablePtr> {
-        debug!("call create_merged_disk_table");
+        debug!("call create_merged_disk_table, merging_level={}", merging_level);
 
         if !disk_tables.is_ready_to_merge(merging_level) {
             return None;
@@ -247,11 +247,12 @@ impl Storage for OrderedStorage {
         if self.shutdown.load(Ordering::SeqCst) {
             return Err(Error::IO("Storage is dropping".to_string()));
         }
-        let mut table = self.m_mem_table.write().unwrap();
-        table.append(entry);
+        let mut m_mem_table = self.m_mem_table.write().unwrap();
+        m_mem_table.append(entry);
 
         // refactoring
-        if table.current_size() == table.max_table_size() {
+        if m_mem_table.current_size() == m_mem_table.max_table_size() {
+            debug!("need flush: {}/{}", m_mem_table.current_size(), m_mem_table.max_table_size());
             // cas
             self.need_flush.store(true, Ordering::SeqCst);
         }
