@@ -29,6 +29,10 @@ impl MemoryTable {
         self.max_table_size
     }
 
+    pub fn need_flush(&self) -> bool {
+        self.current_size() >= self.max_table_size()
+    }
+
     pub fn append(&mut self, entry: &FlexibleUserEntry) {
         self.entries.insert(entry.clone());
         self.current_size += 1;

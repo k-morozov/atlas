@@ -94,7 +94,7 @@ impl OrderedStorage {
                 let mut tables = shards.clone();
 
                 while !need_flush.load(Ordering::SeqCst) && !shutdown.load(Ordering::SeqCst) {
-                    thread::sleep(std::time::Duration::from_secs(1));
+                    thread::sleep(std::time::Duration::from_millis(200));
                 }
 
                 if shutdown.load(Ordering::SeqCst) && !need_flush.load(Ordering::SeqCst) {
@@ -262,15 +262,15 @@ impl Storage for OrderedStorage {
         if self.shutdown.load(Ordering::SeqCst) {
             return Err(Error::IO("Storage is dropping".to_string()));
         }
-        let mut m_mem_table = self.m_mem_table.write().unwrap();
-        m_mem_table.append(entry);
+        let mut lock = self.m_mem_table.write().unwrap();
+        lock.append(entry);
 
         // refactoring
-        if m_mem_table.current_size() == m_mem_table.max_table_size() {
+        if lock.need_flush() {
             debug!(
                 "need flush: {}/{}",
-                m_mem_table.current_size(),
-                m_mem_table.max_table_size()
+                lock.current_size(),
+                lock.max_table_size()
             );
             // cas
             self.need_flush.store(true, Ordering::SeqCst);
