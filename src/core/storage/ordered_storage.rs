@@ -243,13 +243,12 @@ impl Drop for OrderedStorage {
 unsafe impl Sync for OrderedStorage {}
 
 impl Storage for OrderedStorage {
-    fn put(&self, entry: FlexibleUserEntry) -> Result<(), Error> {
+    fn put(&self, entry: &FlexibleUserEntry) -> Result<(), Error> {
         if self.shutdown.load(Ordering::SeqCst) {
-            // @todo
-            return Ok(());
+            return Err(Error::IO("Storage is dropping".to_string()));
         }
         let mut table = self.m_mem_table.write().unwrap();
-        table.append(entry.clone());
+        table.append(entry);
 
         // refactoring
         if table.current_size() == table.max_table_size() {
@@ -296,7 +295,7 @@ mod tests {
                     FlexibleField::new(vec![index, 3, 4]),
                     FlexibleField::new(vec![index * 10, 30, 40]),
                 );
-                table.put(entry).unwrap();
+                table.put(&entry).unwrap();
             }
 
             for index in 0..=config.mem_table_size as u8 {
@@ -324,7 +323,7 @@ mod tests {
                 FlexibleField::new(vec![index, 3, 4]),
                 FlexibleField::new(vec![index * 10, 30, 40]),
             );
-            table.put(entry).unwrap();
+            table.put(&entry).unwrap();
         }
 
         for index in 0..3 * config.mem_table_size as u8 {
@@ -352,7 +351,7 @@ mod tests {
                     FlexibleField::new(vec![index, 3, 4]),
                     FlexibleField::new(vec![index * 2, 30, 40]),
                 );
-                table.put(entry).unwrap();
+                table.put(&entry).unwrap();
             }
 
             for index in 0..10 * config.mem_table_size as u8 {
@@ -384,7 +383,7 @@ mod tests {
                 FlexibleField::new(vec![index, 3, 4]),
                 FlexibleField::new(vec![index * 2, 30, 40]),
             );
-            table.put(entry).unwrap();
+            table.put(&entry).unwrap();
         }
 
         for index in 0..5 * config.mem_table_size as u8 {
@@ -409,7 +408,7 @@ mod tests {
                 FlexibleField::new(vec![index, 3, 4]),
                 FlexibleField::new(vec![index, 30, 40]),
             );
-            table.put(entry).unwrap();
+            table.put(&entry).unwrap();
         }
 
         for index in 0..64 * (config.mem_table_size - 1) as u8 {

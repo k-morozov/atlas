@@ -33,7 +33,7 @@ fn spawn_put_entries_for_range<'a, 'b>(
                 FlexibleField::new(index.to_le_bytes()),
                 FlexibleField::new((index + 10).to_le_bytes()),
             );
-            table.put(entry).unwrap();
+            table.put(&entry).unwrap();
         }
     })
 }
@@ -124,7 +124,7 @@ fn test_get_from_some_data_blocks() -> io::Result<()> {
             FlexibleField::new(vec![index, index, index]),
             FlexibleField::new(vec![index * 10, index * 10, index * 10]),
         );
-        table.put(entry).unwrap();
+        table.put(&entry).unwrap();
     }
 
     for index in 0..9 as u8 {

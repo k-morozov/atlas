@@ -29,8 +29,8 @@ impl MemoryTable {
         self.max_table_size
     }
 
-    pub fn append(&mut self, row: FlexibleUserEntry) {
-        self.entries.insert(row);
+    pub fn append(&mut self, entry: &FlexibleUserEntry) {
+        self.entries.insert(entry.clone());
         self.current_size += 1;
     }
 
@@ -96,19 +96,19 @@ mod tests {
             FlexibleField::new(vec![1, 2, 3]),
             FlexibleField::new(vec![10, 20, 30]),
         );
-        mem_table.append(entry1.clone());
+        mem_table.append(&entry1);
 
         let entry2 = FlexibleUserEntry::new(
             FlexibleField::new(vec![2, 3, 4]),
             FlexibleField::new(vec![20, 30, 40]),
         );
-        mem_table.append(entry2.clone());
+        mem_table.append(&entry2);
 
         let entry3 = FlexibleUserEntry::new(
             FlexibleField::new(vec![3, 4, 5]),
             FlexibleField::new(vec![30, 40, 50]),
         );
-        mem_table.append(entry3.clone());
+        mem_table.append(&entry3);
 
         let mut it = mem_table.iter();
 

@@ -1,7 +1,6 @@
 use std::sync::mpsc::channel;
-use std::thread;
+use std::{io, thread};
 
-use log::{debug, info};
 use rand::Rng;
 
 use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
@@ -10,11 +9,7 @@ use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };
 
-const TOTAL_VALUE: usize = 100_000;
-
-pub fn init() {
-    simple_logger::SimpleLogger::new().init().unwrap();
-}
+const TOTAL_VALUE: usize = 1_000;
 
 fn generate_random_bytes(start: u32, finish: u32) -> Vec<u8> {
     let bytes = rand::rng().random_range(start..=finish);
@@ -33,12 +28,9 @@ fn random_entry() -> FlexibleUserEntry {
     FlexibleUserEntry::new(key, value)
 }
 
-fn main() {
-    init();
-
-    info!("start example");
-
-    let table_name = "/tmp/kvs/examples/example_table";
+#[test]
+fn test_mpsc_table() -> io::Result<()> {
+    let table_name = "/tmp/kvs/test/simple_flexible_segment";
     let mut config = StorageConfig::default_config();
     config.mem_table_size = 256;
     config.disk_tables_limit_by_level = 16;
@@ -50,42 +42,28 @@ fn main() {
 
     thread::scope(|s| {
         s.spawn(|| {
-            for index in 0..mid {
+            for _index in 0..mid {
                 let entry = random_entry();
                 table.put(&entry).unwrap();
                 tx.send(entry).unwrap();
-
-                if index % 10000 == 0 {
-                    info!("thread 1: {} entries were inserted", index);
-                }
             }
         });
 
         s.spawn(|| {
-            for index in mid..TOTAL_VALUE {
+            for _index in mid..TOTAL_VALUE {
                 let entry = random_entry();
                 table.put(&entry).unwrap();
                 tx.send(entry).unwrap();
-
-                if index % 10000 == 0 {
-                    info!("thread 2: {} entries were inserted", index);
-                }
             }
         });
 
-        let mut count = 0;
-        for index in 0..TOTAL_VALUE {
+        for _index in 0..TOTAL_VALUE {
             match rx.recv() {
                 Ok(entry) => {
-                    if index % 10000 == 0 {
-                        info!("thread 3: searching index={}", index);
-                    }
-
                     let result = table.get(entry.get_key()).unwrap();
                     let expected = entry.get_value();
                     if result.is_none() {
-                        // assert!(false, "expected {:?}", *expected);
-                        count += 1;
+                        assert!(false, "expected {:?}", *expected);
                         continue;
                     }
 
@@ -94,7 +72,7 @@ fn main() {
                 Err(er) => panic!("Error: {:?}", er),
             }
         }
-
-        debug!("count broken entries={}", count);
     });
+
+    Ok(())
 }

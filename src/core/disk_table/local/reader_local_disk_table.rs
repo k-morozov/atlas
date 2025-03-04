@@ -182,7 +182,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
             return Ok(None);
         };
 
-        let mut buffer = {
+        let buffer = {
             let lock = self.fd.lock().unwrap();
 
             let _offset = lock.borrow_mut().seek(SeekFrom::Start(offset.pos as u64))?;
@@ -205,11 +205,11 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
         assert_ne!(value_len, 0);
 
         let (buffer_with_key, buffer_value) =
-            buffer.split_at_mut(data_block_buffer::ENTRY_METADATA_SIZE as usize + key_len);
+            buffer.split_at(data_block_buffer::ENTRY_METADATA_SIZE as usize + key_len);
 
-        let key_buffer = &mut buffer_with_key[data_block_buffer::ENTRY_METADATA_SIZE as usize
+        let key_buffer = &buffer_with_key[data_block_buffer::ENTRY_METADATA_SIZE as usize
             ..data_block_buffer::ENTRY_METADATA_SIZE as usize + key_len];
-        let value_buffer = &mut buffer_value[..];
+        let value_buffer = &buffer_value[..];
 
         return Ok(Some(FlexibleUserEntry::new(
             FlexibleField::new(key_buffer.to_vec()),
