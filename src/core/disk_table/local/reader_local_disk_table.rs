@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use crate::core::disk_table::local::block::{data_block, data_block_buffer, meta_block};
 use crate::core::marshal::read_u32;
@@ -14,7 +15,7 @@ pub type ReaderDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, Flex
 
 pub struct ReaderFlexibleDiskTable {
     disk_table_path: PathBuf,
-    fd: RefCell<fs::File>,
+    fd: Mutex<RefCell<fs::File>>,
     count_entries: u32,
     entries_offsets: meta_block::Offsets,
     index_blocks: meta_block::IndexBlocks,
@@ -52,6 +53,8 @@ impl ReaderFlexibleDiskTable {
             )
         };
 
+        assert_ne!(entries_offsets.len(), 0);
+
         let base = (meta_block::INDEX_ENTRIES_COUNT_SIZE
             + count_entries as usize * meta_block::INDEX_ENTRIES_SIZE) as i64;
 
@@ -66,9 +69,12 @@ impl ReaderFlexibleDiskTable {
             )
         };
 
-        Box::new(Self {
+        assert_ne!(index_blocks.len(), 0);
+        assert_ne!(index_blocks.size(), 0);
+
+        Arc::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
-            fd: RefCell::new(fd),
+            fd: Mutex::new(RefCell::new(fd)),
             count_entries,
             entries_offsets,
             index_blocks,
@@ -145,7 +151,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
             let mid = (left + right) / 2;
             let index = self.index_blocks.get_by_index(mid);
 
-            match index.key.cmp(key) {
+            match index.first_key.cmp(key) {
                 std::cmp::Ordering::Less => {
                     if left + 1 == right {
                         break Some(mid);
@@ -156,6 +162,9 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                     break Some(mid);
                 }
                 std::cmp::Ordering::Greater => {
+                    if left + 1 == right {
+                        break None;
+                    }
                     right = mid;
                 }
             };
@@ -166,7 +175,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                 let index_block = self.index_blocks.get_by_index(index);
 
                 let block = data_block::DataBlock::new(
-                    &mut self.fd.borrow_mut(),
+                    &mut self.fd.lock().unwrap().borrow_mut(),
                     index_block.block_offset,
                     index_block.block_size,
                 );
@@ -178,20 +187,23 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
 
     fn read_entry_by_index(&self, index: u32) -> Result<Option<FlexibleUserEntry>> {
         let Some(offset) = self.entries_offsets.get(index as usize) else {
-            return Ok(None);
+            panic!("Something wrong: index {} must's be here", index)
         };
 
-        let _offset = self
-            .fd
-            .borrow_mut()
-            .seek(SeekFrom::Start(offset.pos as u64))?;
+        let buffer = {
+            let lock = self.fd.lock().unwrap();
 
-        assert_ne!(offset.size, 0);
+            let _offset = lock.borrow_mut().seek(SeekFrom::Start(offset.pos as u64))?;
 
-        // read row with entry
-        let mut buffer = vec![0u8; offset.size as usize];
-        let bytes: usize = self.fd.borrow_mut().read(&mut buffer)?;
-        assert_eq!(bytes, offset.size as usize);
+            assert_ne!(offset.size, 0);
+
+            // read row with entry
+            let mut buffer = vec![0u8; offset.size as usize];
+            let bytes = lock.borrow_mut().read(&mut buffer)?;
+            assert_eq!(bytes, offset.size as usize);
+
+            buffer
+        };
 
         // parse metadata
         let key_len = read_u32(&buffer[0..])? as usize;
@@ -201,11 +213,11 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
         assert_ne!(value_len, 0);
 
         let (buffer_with_key, buffer_value) =
-            buffer.split_at_mut(data_block_buffer::ENTRY_METADATA_SIZE as usize + key_len);
+            buffer.split_at(data_block_buffer::ENTRY_METADATA_SIZE as usize + key_len);
 
-        let key_buffer = &mut buffer_with_key[data_block_buffer::ENTRY_METADATA_SIZE as usize
+        let key_buffer = &buffer_with_key[data_block_buffer::ENTRY_METADATA_SIZE as usize
             ..data_block_buffer::ENTRY_METADATA_SIZE as usize + key_len];
-        let value_buffer = &mut buffer_value[..];
+        let value_buffer = &buffer_value[..];
 
         return Ok(Some(FlexibleUserEntry::new(
             FlexibleField::new(key_buffer.to_vec()),

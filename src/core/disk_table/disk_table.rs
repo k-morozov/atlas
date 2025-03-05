@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use super::disk_tables_shard::Levels;
 use super::id::DiskTableID;
-use super::utils::Levels;
 use crate::core::entry::user_entry::UserEntry;
 use crate::errors::Result;
 
 pub type WriterDiskTablePtr<K, V> = Box<dyn WriterDiskTable<K, V>>;
-pub type ReaderDiskTablePtr<K, V> = Box<dyn ReaderDiskTable<K, V>>;
+pub type ReaderDiskTablePtr<K, V> = Arc<dyn ReaderDiskTable<K, V>>;
 
 pub trait Writer<K, V> {
     fn write(&mut self, buffer: &[u8]) -> Result<()>;
@@ -25,7 +26,7 @@ pub trait DiskTable<K, V> {
 }
 
 pub trait WriterDiskTable<K, V>: DiskTable<K, V> + Writer<K, V> {}
-pub trait ReaderDiskTable<K, V>: DiskTable<K, V> + Reader<K, V> {}
+pub trait ReaderDiskTable<K, V>: DiskTable<K, V> + Reader<K, V> + Send + Sync {}
 
 pub fn get_disk_table_path(storage_path: &Path, segment_name: &str) -> PathBuf {
     let disk_table_path = format!(

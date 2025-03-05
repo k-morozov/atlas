@@ -7,7 +7,7 @@ use std::{
 };
 
 pub struct DataBlock {
-    index_entries: Vec<u32>,
+    _index_entries: Vec<u32>,
     data: Vec<FlexibleUserEntry>,
 }
 
@@ -51,7 +51,7 @@ impl DataBlock {
 
         Self {
             data,
-            index_entries,
+            _index_entries: index_entries,
         }
     }
 
@@ -85,12 +85,12 @@ impl<'a> Iterator for DataBlockIterator<'a> {
     type Item = &'a FlexibleUserEntry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.block.index_entries.len() {
+        if self.pos >= self.block._index_entries.len() {
             return None;
         }
         Some(
             self.block
-                .get_by_index(self.block.index_entries[self.pos] as usize),
+                .get_by_index(self.block._index_entries[self.pos] as usize),
         )
     }
 }

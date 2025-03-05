@@ -6,8 +6,8 @@ pub struct FlexibleField {
 }
 
 impl FlexibleField {
-    pub fn new(data: Vec<u8>) -> Self {
-        Self { data }
+    pub fn new<T: Into<Vec<u8>>>(data: T) -> Self {
+        Self { data: data.into() }
     }
 
     pub fn len(&self) -> usize {

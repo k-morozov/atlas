@@ -1,19 +1,11 @@
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use crate::core::disk_table::local::reader_local_disk_table::ReaderDiskTablePtr;
 use crate::errors::Result;
 
 use super::disk_table::get_disk_table_path;
+use super::disk_tables_shard::DiskTablesShards;
 use super::local::local_disk_table_builder::DiskTableBuilder;
-
-pub type Levels = u8;
-pub type ReaderDiskTables = Vec<ReaderDiskTablePtr>;
-pub type LevelsReaderDiskTables = BTreeMap<Levels, ReaderDiskTables>;
-
-pub const SEGMENTS_MIN_LEVEL: Levels = 1;
-pub const SEGMENTS_MAX_LEVEL: Levels = 3;
 
 fn extract_level(disk_table: &str) -> Option<u8> {
     // segment_123_4.bin
@@ -26,10 +18,10 @@ fn extract_level(disk_table: &str) -> Option<u8> {
     level.parse::<u8>().ok()
 }
 
-pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables> {
+pub fn get_disk_tables(table_path: &Path) -> Result<DiskTablesShards> {
     let segment_dir = format!("{}/segment", table_path.to_str().unwrap());
 
-    let disk_tables = fs::read_dir(segment_dir)?
+    let shards = fs::read_dir(segment_dir)?
         .map(|entry| {
             let result = match entry {
                 Ok(entry) => {
@@ -41,8 +33,9 @@ pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables> {
                             let disk_table_path = get_disk_table_path(table_path, &disk_table_name);
 
                             // @todo
-                            let sg = DiskTableBuilder::from(disk_table_path).build().unwrap();
-                            (level, sg)
+                            let disk_table =
+                                DiskTableBuilder::from(disk_table_path).build().unwrap();
+                            (level, disk_table)
                         }
                         None => panic!("failed parse disk table name ={}.", disk_table_name),
                     };
@@ -54,10 +47,10 @@ pub fn get_disk_tables(table_path: &Path) -> Result<LevelsReaderDiskTables> {
             };
             result
         })
-        .fold(BTreeMap::new(), |mut table, (level, segment)| {
-            table.entry(level).or_insert_with(Vec::new).push(segment);
+        .fold(DiskTablesShards::new(), |table, (level, disk_table)| {
+            table.put_disk_table_by_level(level, disk_table);
             table
         });
 
-    Ok(disk_tables)
+    Ok(shards)
 }

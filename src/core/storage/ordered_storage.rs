@@ -1,21 +1,37 @@
-use std::fs::create_dir_all;
-use std::path::{Path, PathBuf};
+use std::{
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, RwLock,
+    },
+    thread,
+};
 
-use super::storage::Storage;
-use crate::core::disk_table::{
-    disk_table::{get_disk_table_name, get_disk_table_path},
-    local::local_disk_table_builder::DiskTableBuilder,
-    utils::{get_disk_tables, LevelsReaderDiskTables, SEGMENTS_MIN_LEVEL},
+use log::{debug, error, info};
+
+use crate::{
+    core::{
+        disk_table::{
+            disk_table::{get_disk_table_name, get_disk_table_name_by_level, get_disk_table_path},
+            disk_tables_shard::{self, DiskTablesShards},
+            local::{
+                local_disk_table_builder::DiskTableBuilder,
+                reader_local_disk_table::ReaderDiskTablePtr,
+            },
+            utils,
+        },
+        entry::flexible_user_entry::FlexibleUserEntry,
+        field::FlexibleField,
+        mem_table::MemoryTable,
+        storage::{
+            config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
+            metadata::StorageMetadata,
+            storage::Storage,
+        },
+    },
+    errors::Error,
 };
-use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
-use crate::core::field::FlexibleField;
-use crate::core::mem_table::MemoryTable;
-use crate::core::merge::merge::{is_ready_to_merge, merge_disk_tables};
-use crate::core::storage::{
-    config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
-    metadata::StorageMetadata,
-};
-use crate::errors::Error;
 
 fn create_dirs(storage_path: &Path) -> Result<(), Error> {
     create_dir_all(Path::new(storage_path))?;
@@ -26,10 +42,15 @@ fn create_dirs(storage_path: &Path) -> Result<(), Error> {
 }
 
 pub struct OrderedStorage {
+    // @todo
     storage_path: PathBuf,
-    mem_table: MemoryTable,
-    metadata: StorageMetadata,
-    disk_tables: LevelsReaderDiskTables,
+    m_mem_table: Arc<RwLock<MemoryTable>>,
+    // i_mem_table: Option<Box<MemoryTable>>,
+    need_flush: Arc<AtomicBool>,
+    flush_worker: Option<thread::JoinHandle<()>>,
+    shutdown: Arc<AtomicBool>,
+    metadata: Arc<Mutex<StorageMetadata>>,
+    shards: Arc<DiskTablesShards>,
     config: StorageConfig,
 }
 
@@ -43,19 +64,66 @@ impl OrderedStorage {
             )
         }
 
-        let Ok(disk_tables) = get_disk_tables(storage_path.as_ref()) else {
+        let Ok(shards) = utils::get_disk_tables(storage_path.as_ref()) else {
             panic!("Faield read disk tables")
         };
 
-        let metadata =
-            StorageMetadata::from_file(StorageMetadata::make_path(&storage_path).as_path());
+        let metadata = Arc::new(Mutex::new(StorageMetadata::from_file(
+            StorageMetadata::make_path(&storage_path).as_path(),
+        )));
+
+        let m_mem_table = Arc::new(RwLock::new(MemoryTable::new(config.mem_table_size)));
+        let need_flush = Arc::new(AtomicBool::new(false));
+        let shutdown = Arc::new(AtomicBool::new(false));
+
+        let shards = Arc::new(shards);
+
+        let storage_path = storage_path.as_ref().to_path_buf();
 
         Self {
-            mem_table: MemoryTable::new(config.mem_table_size),
-            storage_path: storage_path.as_ref().to_path_buf(),
-            metadata,
-            disk_tables,
+            m_mem_table: m_mem_table.clone(),
+            // i_mem_table: None,
+            need_flush: need_flush.clone(),
+            shutdown: shutdown.clone(),
+            storage_path: storage_path.clone(),
+            metadata: metadata.clone(),
+            shards: shards.clone(),
             config,
+
+            flush_worker: Some(thread::spawn(move || loop {
+                let mut tables = shards.clone();
+
+                while !need_flush.load(Ordering::SeqCst) && !shutdown.load(Ordering::SeqCst) {
+                    thread::sleep(std::time::Duration::from_millis(200));
+                }
+
+                if shutdown.load(Ordering::SeqCst) && !need_flush.load(Ordering::SeqCst) {
+                    info!("call last flush");
+
+                    Self::save_mem_table(
+                        m_mem_table.clone(),
+                        metadata.clone(),
+                        storage_path.clone(),
+                        &mut tables,
+                    );
+
+                    Self::merge_disk_tables(shards.clone(), metadata.clone(), storage_path.clone());
+                    return;
+                }
+
+                info!("call flush");
+
+                Self::save_mem_table(
+                    m_mem_table.clone(),
+                    metadata.clone(),
+                    storage_path.clone(),
+                    &mut tables,
+                );
+
+                Self::merge_disk_tables(shards.clone(), metadata.clone(), storage_path.clone());
+
+                need_flush.store(false, Ordering::SeqCst);
+            })),
         }
     }
 
@@ -65,13 +133,25 @@ impl OrderedStorage {
         ))
     }
 
-    fn save_mem_table(&mut self) {
-        let segment_id = self.metadata.segment_id.get_and_next();
-        let segment_name = get_disk_table_name(segment_id);
-        let disk_table_path = get_disk_table_path(self.storage_path.as_path(), &segment_name);
+    fn save_mem_table(
+        mem_table: Arc<RwLock<MemoryTable>>,
+        metadata: Arc<Mutex<StorageMetadata>>,
+        storage_path: PathBuf,
+        shards: &mut Arc<DiskTablesShards>,
+    ) {
+        let mut lock = mem_table.write().unwrap();
 
-        let segment_from_mem_table = self
-            .mem_table
+        debug!("call save_mem_table, size={}", lock.current_size());
+
+        if lock.current_size() == 0 {
+            return;
+        }
+
+        let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
+        let disk_table_name = get_disk_table_name(disk_table_id);
+        let disk_table_path = get_disk_table_path(storage_path.as_path(), &disk_table_name);
+
+        let disk_table_from_mem_table = lock
             .into_iter()
             .fold(
                 DiskTableBuilder::new(disk_table_path.as_path()),
@@ -82,64 +162,127 @@ impl OrderedStorage {
             )
             .build();
 
-        match segment_from_mem_table {
+        match disk_table_from_mem_table {
             Ok(disk_table) => {
-                self.disk_tables
-                    .entry(SEGMENTS_MIN_LEVEL)
-                    .or_insert_with(Vec::new)
-                    .push(disk_table);
+                shards.put_disk_table_by_level(disk_tables_shard::SEGMENTS_MIN_LEVEL, disk_table);
             }
             Err(er) => panic!("Failed save_mem_table. {}", er),
         }
 
-        self.mem_table = MemoryTable::new(self.config.mem_table_size);
+        lock.clear();
 
-        self.metadata
-            .sync_disk(Path::new(self.metadata.get_metadata_path()));
-        self.mem_table.clear();
+        metadata.lock().unwrap().sync_disk();
+    }
+
+    fn merge_disk_tables(
+        shards: Arc<DiskTablesShards>,
+        metadata: Arc<Mutex<StorageMetadata>>,
+        storage_path: PathBuf,
+    ) {
+        for merging_level in
+            disk_tables_shard::SEGMENTS_MIN_LEVEL..=disk_tables_shard::SEGMENTS_MAX_LEVEL
+        {
+            debug!("call merge_disk_tables, merging_level={}", merging_level);
+
+            let level_for_new_disk_table = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL
+            {
+                merging_level + 1
+            } else {
+                merging_level
+            };
+
+            let merged_disk_table = match Self::create_merged_disk_table(
+                &shards,
+                merging_level,
+                metadata.clone(),
+                storage_path.as_path(),
+            ) {
+                Some(new_disk_table) => new_disk_table,
+                None => break,
+            };
+
+            if let Err(er) = shards.remove_tables_from_level(merging_level) {
+                panic!("failed remove merging disk table: error={}", er)
+            }
+
+            debug!(
+                "merged_disk_table: level={}, path={}, entries={}",
+                level_for_new_disk_table,
+                merged_disk_table.as_ref().get_path().display(),
+                merged_disk_table.as_ref().count_entries()
+            );
+
+            shards.put_disk_table_by_level(level_for_new_disk_table, merged_disk_table);
+        }
+    }
+
+    fn create_merged_disk_table(
+        shards: &Arc<DiskTablesShards>,
+        merging_level: disk_tables_shard::Levels,
+        metadata: Arc<Mutex<StorageMetadata>>,
+        storage_path: &Path,
+    ) -> Option<ReaderDiskTablePtr> {
+        if !shards.is_ready_to_merge(merging_level) {
+            return None;
+        }
+
+        let level_for_new_sg = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL {
+            merging_level + 1
+        } else {
+            merging_level
+        };
+
+        let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
+        let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
+        let disk_table_path = get_disk_table_path(storage_path, &segment_name);
+
+        let merged_disk_table = shards.merge_level(merging_level, disk_table_path.as_path());
+
+        Some(merged_disk_table)
     }
 }
 
+impl Drop for OrderedStorage {
+    fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+        self.need_flush.store(true, Ordering::SeqCst);
+
+        match self.flush_worker.take().unwrap().join() {
+            Ok(_) => info!("Flush worker was joined"),
+            Err(er) => error!("Drop storage: failed join flush worker with error={:?}", er),
+        }
+    }
+}
+
+unsafe impl Sync for OrderedStorage {}
+
 impl Storage for OrderedStorage {
-    fn put(&mut self, entry: FlexibleUserEntry) -> Result<(), Error> {
-        self.mem_table.append(entry.clone());
+    fn put(&self, entry: &FlexibleUserEntry) -> Result<(), Error> {
+        if self.shutdown.load(Ordering::SeqCst) {
+            return Err(Error::IO("Storage is dropping".to_string()));
+        }
+        let mut lock = self.m_mem_table.write().unwrap();
+        lock.append(entry);
 
-        if self.mem_table.current_size() == self.mem_table.max_table_size() {
-            self.save_mem_table();
-
-            // @todo
-            if is_ready_to_merge(&self.disk_tables) {
-                merge_disk_tables(
-                    &mut self.disk_tables,
-                    self.storage_path.as_path(),
-                    &mut self.metadata.segment_id,
-                );
-            }
+        // refactoring
+        if lock.need_flush() {
+            // cas
+            self.need_flush.store(true, Ordering::SeqCst);
         }
 
         Ok(())
     }
 
     fn get(&self, key: &FlexibleField) -> Result<Option<FlexibleField>, Error> {
-        if let Some(value) = self.mem_table.get_value(key) {
+        if self.shutdown.load(Ordering::SeqCst) {
+            debug!("Storage was shutdowned. None.");
+            return Ok(None);
+        }
+        if let Some(value) = self.m_mem_table.read().unwrap().get_value(key) {
             return Ok(Some(value));
         }
 
-        for (_level, segments) in &self.disk_tables {
-            for segment in segments {
-                match segment.read(key) {
-                    Ok(v) => match v {
-                        Some(v) => return Ok(Some(v)),
-                        None => continue,
-                    },
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }
-            }
-        }
-
-        Ok(None)
+        self.shards.get(key)
     }
 }
 
@@ -153,21 +296,21 @@ mod tests {
     use crate::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 
     #[test]
-    fn test_segment() -> io::Result<()> {
+    fn test_simple() -> io::Result<()> {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
-        let table_path = tmp_dir.path().join("test_segment");
+        let table_path = tmp_dir.path().join("test_simple");
 
         {
             let mut config = StorageConfig::default_config();
             config.mem_table_size = 2;
-            let mut table = OrderedStorage::new(table_path, config.clone());
+            let table = OrderedStorage::new(table_path, config.clone());
 
             for index in 0..=config.mem_table_size as u8 {
                 let entry = FlexibleUserEntry::new(
                     FlexibleField::new(vec![index, 3, 4]),
                     FlexibleField::new(vec![index * 10, 30, 40]),
                 );
-                table.put(entry).unwrap();
+                table.put(&entry).unwrap();
             }
 
             for index in 0..=config.mem_table_size as u8 {
@@ -188,14 +331,14 @@ mod tests {
         let table_path = tmp_dir.path().join("test_some_segments");
 
         let config = StorageConfig::default_config();
-        let mut table = OrderedStorage::new(table_path, config.clone());
+        let table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..3 * config.mem_table_size as u8 {
             let entry = FlexibleUserEntry::new(
                 FlexibleField::new(vec![index, 3, 4]),
                 FlexibleField::new(vec![index * 10, 30, 40]),
             );
-            table.put(entry).unwrap();
+            table.put(&entry).unwrap();
         }
 
         for index in 0..3 * config.mem_table_size as u8 {
@@ -210,20 +353,20 @@ mod tests {
     }
 
     #[test]
-    fn test_some_segments_with_restart() -> io::Result<()> {
+    fn test_some_disk_tables_with_restart() -> io::Result<()> {
         let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
         let table_path = tmp_dir.path().join("test_some_segments_with_restart");
 
         let config = StorageConfig::default_config();
         {
-            let mut table = OrderedStorage::new(&table_path, config.clone());
+            let table = OrderedStorage::new(&table_path, config.clone());
 
             for index in 0..10 * config.mem_table_size as u8 {
                 let entry = FlexibleUserEntry::new(
                     FlexibleField::new(vec![index, 3, 4]),
                     FlexibleField::new(vec![index * 2, 30, 40]),
                 );
-                table.put(entry).unwrap();
+                table.put(&entry).unwrap();
             }
 
             for index in 0..10 * config.mem_table_size as u8 {
@@ -248,14 +391,14 @@ mod tests {
 
         let config = StorageConfig::default_config();
 
-        let mut table = OrderedStorage::new(table_path, config.clone());
+        let table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..5 * config.mem_table_size as u8 {
             let entry = FlexibleUserEntry::new(
                 FlexibleField::new(vec![index, 3, 4]),
                 FlexibleField::new(vec![index * 2, 30, 40]),
             );
-            table.put(entry).unwrap();
+            table.put(&entry).unwrap();
         }
 
         for index in 0..5 * config.mem_table_size as u8 {
@@ -273,14 +416,14 @@ mod tests {
 
         let config = StorageConfig::default_config();
 
-        let mut table = OrderedStorage::new(table_path, config.clone());
+        let table = OrderedStorage::new(table_path, config.clone());
 
         for index in 0..64 * (config.mem_table_size - 1) as u8 {
             let entry = FlexibleUserEntry::new(
                 FlexibleField::new(vec![index, 3, 4]),
                 FlexibleField::new(vec![index, 30, 40]),
             );
-            table.put(entry).unwrap();
+            table.put(&entry).unwrap();
         }
 
         for index in 0..64 * (config.mem_table_size - 1) as u8 {
