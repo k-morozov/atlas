@@ -82,7 +82,7 @@ impl DiskTableBuilder {
                             block_offset: self.offset,
                             block_size: data_block.max_size() as u32,
                             key_size: entry.get_key().size() as u32,
-                            key: entry.get_key().clone(),
+                            first_key: entry.get_key().clone(),
                         });
                     }
                     self.index_entries.push(Offset {

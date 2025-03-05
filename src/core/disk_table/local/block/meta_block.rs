@@ -118,7 +118,7 @@ pub struct IndexBlock {
     pub block_offset: u32,
     pub block_size: u32,
     pub key_size: u32,
-    pub key: FlexibleField,
+    pub first_key: FlexibleField,
 }
 
 impl IndexBlock {
@@ -138,7 +138,7 @@ impl IndexBlock {
         let bytes = fd.read(&mut buffer)?;
         assert_eq!(bytes, key_size as usize);
 
-        let key = FlexibleField::new(buffer);
+        let first_key = FlexibleField::new(buffer);
 
         assert_eq!(block_size, config::DEFAULT_DATA_BLOCK_SIZE as u32);
 
@@ -146,7 +146,7 @@ impl IndexBlock {
             block_offset,
             block_size,
             key_size,
-            key,
+            first_key,
         })
     }
 
@@ -169,7 +169,7 @@ impl block::WriteToTable for IndexBlock {
 
         assert_eq!(self.block_size, config::DEFAULT_DATA_BLOCK_SIZE as u32);
 
-        ptr.write(self.key.data())?;
+        ptr.write(self.first_key.data())?;
 
         Ok(())
     }

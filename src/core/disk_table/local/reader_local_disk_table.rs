@@ -151,7 +151,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
             let mid = (left + right) / 2;
             let index = self.index_blocks.get_by_index(mid);
 
-            match index.key.cmp(key) {
+            match index.first_key.cmp(key) {
                 std::cmp::Ordering::Less => {
                     if left + 1 == right {
                         break Some(mid);
@@ -163,9 +163,9 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                 }
                 std::cmp::Ordering::Greater => {
                     if left + 1 == right {
-                        break Some(mid);
+                        break None;
                     }
-                    right = mid + 1;
+                    right = mid;
                 }
             };
         };
