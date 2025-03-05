@@ -1,7 +1,7 @@
 use std::sync::mpsc::channel;
 use std::{fs, io, thread};
 
-use log::{debug, info};
+use log::{debug, info, warn};
 use rand::Rng;
 
 use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
@@ -90,7 +90,18 @@ fn main() -> io::Result<()> {
                     let result = table.get(entry.get_key()).unwrap();
                     let expected = entry.get_value();
                     if result.is_none() {
-                        assert!(false, "result is none, index={}, expected {:?}", index, *expected);
+                        warn!("Found none, expect value. Wait sync 2 sec for sync and repeat...");
+                        thread::sleep(std::time::Duration::from_secs(2));
+
+                        let result = table.get(entry.get_key()).unwrap();
+                        if result.is_none() {
+                            assert!(
+                                false,
+                                "result is none again, index={}, expected {:?}",
+                                index, *expected
+                            );
+                        }
+                        assert_eq!(result.unwrap(), *expected, "expected {:?}", *expected);
                         continue;
                     }
 

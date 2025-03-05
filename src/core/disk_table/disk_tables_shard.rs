@@ -55,7 +55,11 @@ impl DiskTablesShards {
 
         shard.push(disk_table);
 
-        debug!("count tables={} in level={} after push merged disk table", shard.len(), level);
+        debug!(
+            "count tables={} in level={} after push merged disk table",
+            shard.len(),
+            level
+        );
 
         // @todo return status?
     }
