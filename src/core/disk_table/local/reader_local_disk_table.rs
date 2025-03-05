@@ -53,6 +53,8 @@ impl ReaderFlexibleDiskTable {
             )
         };
 
+        assert_ne!(entries_offsets.len(), 0);
+
         let base = (meta_block::INDEX_ENTRIES_COUNT_SIZE
             + count_entries as usize * meta_block::INDEX_ENTRIES_SIZE) as i64;
 

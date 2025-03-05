@@ -72,9 +72,9 @@ impl DiskTablesShards {
         let merging_tables = lock.get(&level).unwrap();
 
         // @todo
-        let dt = merging_tables.disk_tables.read().unwrap();
+        let disk_tables = merging_tables.disk_tables.read().unwrap();
 
-        let mut its = dt
+        let mut its = disk_tables
             .iter()
             .map(|disk_table| disk_table.into_iter())
             .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
