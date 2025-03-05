@@ -90,6 +90,7 @@ fn main() -> io::Result<()> {
                     let result = table.get(entry.get_key()).unwrap();
                     let expected = entry.get_value();
                     if result.is_none() {
+                        // workaround - need to fix file's sync/flush
                         warn!("Found none by index {}, expect value. Wait sync 2 sec for sync and repeat...", index);
                         thread::sleep(std::time::Duration::from_secs(2));
 
