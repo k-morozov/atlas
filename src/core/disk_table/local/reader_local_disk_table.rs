@@ -184,7 +184,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
 
     fn read_entry_by_index(&self, index: u32) -> Result<Option<FlexibleUserEntry>> {
         let Some(offset) = self.entries_offsets.get(index as usize) else {
-            return Ok(None);
+            panic!("Something wrong: index {} must's be here", index)
         };
 
         let buffer = {
