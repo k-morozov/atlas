@@ -162,7 +162,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                     break Some(mid);
                 }
                 std::cmp::Ordering::Greater => {
-                    right = mid;
+                    right = mid + 1;
                 }
             };
         };
@@ -196,7 +196,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
 
             // read row with entry
             let mut buffer = vec![0u8; offset.size as usize];
-            let bytes: usize = lock.borrow_mut().read(&mut buffer)?;
+            let bytes = lock.borrow_mut().read(&mut buffer)?;
             assert_eq!(bytes, offset.size as usize);
 
             buffer

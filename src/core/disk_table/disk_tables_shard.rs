@@ -143,8 +143,8 @@ impl DiskTablesShards {
     // workaround
     pub fn get(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
         for (_level, shard) in self.shards.read().unwrap().iter() {
-            for segment in shard.iter() {
-                match segment.read(key) {
+            for disk_table in shard.iter() {
+                match disk_table.read(key) {
                     Ok(v) => match v {
                         Some(v) => return Ok(Some(v)),
                         None => continue,
