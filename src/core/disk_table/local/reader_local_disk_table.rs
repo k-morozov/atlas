@@ -156,7 +156,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
                     if left + 1 == right {
                         break Some(mid);
                     }
-                    left = mid + 1;
+                    left = mid;
                 }
                 std::cmp::Ordering::Equal => {
                     break Some(mid);
