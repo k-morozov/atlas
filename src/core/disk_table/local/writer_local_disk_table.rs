@@ -16,17 +16,9 @@ pub struct WriterFlexibleDiskTable {
 impl WriterFlexibleDiskTable {
     pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> WriterFlexibleDiskTablePtr {
         let mut options = fs::OpenOptions::new();
-        options.write(true).create(true);
+        options.create(true).append(true);
 
-        if let Err(er) = options.open(disk_table_path.as_ref()) {
-            panic!(
-                "FlexibleSegment: Failed to create part. path={}, error= {}",
-                disk_table_path.as_ref().display(),
-                er
-            );
-        };
-
-        let fd = match fs::File::create(disk_table_path.as_ref()) {
+        let fd = match options.open(disk_table_path.as_ref()) {
             Ok(fd) => fd,
             Err(er) => {
                 panic!(

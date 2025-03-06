@@ -4,6 +4,8 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use nix::fcntl::{self, OFlag};
+
 use crate::core::disk_table::local::block::{data_block, data_block_buffer, meta_block};
 use crate::core::marshal::read_u32;
 use crate::core::{
@@ -15,7 +17,7 @@ pub type ReaderDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, Flex
 
 pub struct ReaderFlexibleDiskTable {
     disk_table_path: PathBuf,
-    fd: Mutex<RefCell<fs::File>>,
+    fd: Mutex<RefCell<i32>>,
     count_entries: u32,
     entries_offsets: meta_block::Offsets,
     index_blocks: meta_block::IndexBlocks,
@@ -23,7 +25,11 @@ pub struct ReaderFlexibleDiskTable {
 
 impl ReaderFlexibleDiskTable {
     pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> ReaderDiskTablePtr {
-        let mut fd = match fs::File::open(disk_table_path.as_ref()) {
+        let mut fd = match fcntl::open(
+            disk_table_path.as_ref(),
+            OFlag::O_CREAT | OFlag::O_SYNC,
+            nix::sys::stat::Mode::S_IWUSR,
+        ) {
             Ok(fd) => fd,
             Err(er) => panic!(
                 "FlexibleReader: error={}, path={}",
@@ -33,12 +39,15 @@ impl ReaderFlexibleDiskTable {
         };
 
         // read entries offsets
-        let _offset = fd.seek(SeekFrom::End(
+        nix::unistd::lseek(
+            fd,
             -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
-        ));
-
+            nix::unistd::Whence::SeekEnd,
+        )
+        .unwrap();
         let mut buffer = [0u8; meta_block::INDEX_ENTRIES_COUNT_SIZE];
-        let Ok(bytes) = fd.read(&mut buffer) else {
+
+        let Ok(bytes) = nix::unistd::read(fd, &mut buffer) else {
             panic!("Failed read from disk")
         };
         assert_eq!(bytes, meta_block::INDEX_ENTRIES_COUNT_SIZE);
@@ -81,11 +90,18 @@ impl ReaderFlexibleDiskTable {
         })
     }
 
-    fn read_index_entries(fd: &mut fs::File, count_entries: u32) -> Result<meta_block::Offsets> {
-        let _offset = fd.seek(SeekFrom::End(
+    fn read_index_entries(fd: &mut i32, count_entries: u32) -> Result<meta_block::Offsets> {
+        nix::unistd::lseek(
+            *fd,
             -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64
                 + count_entries as i64 * meta_block::INDEX_ENTRIES_SIZE as i64),
-        ))?;
+            nix::unistd::Whence::SeekEnd,
+        )
+        .unwrap();
+        // let _offset = fd.seek(SeekFrom::End(
+        //     -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64
+        //         + count_entries as i64 * meta_block::INDEX_ENTRIES_SIZE as i64),
+        // ))?;
 
         let mut index_entries = meta_block::Offsets::new();
         index_entries.reserve(count_entries as usize);
@@ -93,7 +109,8 @@ impl ReaderFlexibleDiskTable {
         for _entry_offset in 0..count_entries {
             let mut buffer = [0u8; meta_block::INDEX_ENTRIES_SIZE];
 
-            let bytes = fd.read(&mut buffer)?;
+            let bytes = nix::unistd::read(*fd, &mut buffer).unwrap();
+            // let bytes = fd.read(&mut buffer)?;
             assert_eq!(bytes, meta_block::INDEX_ENTRIES_SIZE);
             let entry_offset = read_u32(&buffer[..meta_block::INDEX_ENTRIES_OFFSET_SIZE])?;
             let entry_size = read_u32(&buffer[meta_block::INDEX_ENTRIES_OFFSET_SIZE..])?;
@@ -110,11 +127,12 @@ impl ReaderFlexibleDiskTable {
     }
 
     fn read_index_blocks(
-        fd: &mut fs::File,
+        fd: &mut i32,
         start_offset: i64,
         count_blocks: u32,
     ) -> Result<meta_block::IndexBlocks> {
-        let _offset = fd.seek(SeekFrom::End(-(start_offset)))?;
+        nix::unistd::lseek(*fd, -(start_offset), nix::unistd::Whence::SeekEnd).unwrap();
+        // let _offset = fd.seek(SeekFrom::End(-(start_offset)))?;
 
         let mut index_blocks = meta_block::IndexBlocks::with_capacity(count_blocks as usize);
 
@@ -193,13 +211,21 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
         let buffer = {
             let lock = self.fd.lock().unwrap();
 
-            let _offset = lock.borrow_mut().seek(SeekFrom::Start(offset.pos as u64))?;
+            nix::unistd::lseek(
+                *lock.borrow_mut(),
+                offset.pos as i64,
+                nix::unistd::Whence::SeekSet,
+            )
+            .unwrap();
+            // let _offset = lock.borrow_mut().seek(SeekFrom::Start(offset.pos as u64))?;
 
             assert_ne!(offset.size, 0);
 
             // read row with entry
             let mut buffer = vec![0u8; offset.size as usize];
-            let bytes = lock.borrow_mut().read(&mut buffer)?;
+
+            let bytes = nix::unistd::read(*lock.borrow_mut(), &mut buffer).unwrap();
+            // let bytes = lock.borrow_mut().read(&mut buffer)?;
             assert_eq!(bytes, offset.size as usize);
 
             buffer

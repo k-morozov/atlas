@@ -32,10 +32,17 @@ pub struct Offset {
     pub size: u32,
 }
 
-pub fn metadata_index_blocks(base: i64, fd: &mut fs::File) -> (i64, u32) {
-    let _offset = fd.seek(SeekFrom::End(-(base + INDEX_BLOCKS_COUNT_SIZE as i64)));
+pub fn metadata_index_blocks(base: i64, fd: &i32) -> (i64, u32) {
+    nix::unistd::lseek(
+        *fd,
+        -(base + INDEX_BLOCKS_COUNT_SIZE as i64),
+        nix::unistd::Whence::SeekEnd,
+    )
+    .unwrap();
+    // let _offset = fd.seek(SeekFrom::End(-(base + INDEX_BLOCKS_COUNT_SIZE as i64)));
     let mut buffer = [0u8; INDEX_BLOCKS_COUNT_SIZE];
-    let Ok(bytes) = fd.read(&mut buffer) else {
+
+    let Ok(bytes) = nix::unistd::read(*fd, &mut buffer) else {
         panic!("Failed read count index blocks from disk")
     };
     assert_eq!(bytes, INDEX_BLOCKS_COUNT_SIZE);
@@ -43,11 +50,17 @@ pub fn metadata_index_blocks(base: i64, fd: &mut fs::File) -> (i64, u32) {
     let count_blocks = u32::from_le_bytes(buffer);
 
     // read count
-    let _offset = fd.seek(SeekFrom::End(
+    nix::unistd::lseek(
+        *fd,
         -(base + INDEX_BLOCKS_COUNT_SIZE as i64 + INDEX_BLOCKS_BASE as i64),
-    ));
+        nix::unistd::Whence::SeekEnd,
+    )
+    .unwrap();
+    // let _offset = fd.seek(SeekFrom::End(
+    //     -(base + INDEX_BLOCKS_COUNT_SIZE as i64 + INDEX_BLOCKS_BASE as i64),
+    // ));
     let mut buffer = [0u8; INDEX_BLOCKS_BASE];
-    let Ok(bytes) = fd.read(&mut buffer) else {
+    let Ok(bytes) = nix::unistd::read(*fd, &mut buffer) else {
         panic!("Failed read size of index blocks from disk")
     };
     assert_eq!(bytes, INDEX_BLOCKS_BASE);
@@ -123,10 +136,12 @@ pub struct IndexBlock {
 
 impl IndexBlock {
     // @todo depends on seek position
-    pub fn from(fd: &mut fs::File) -> Result<Self> {
+    pub fn from(fd: &mut i32) -> Result<Self> {
         let mut buffer = [0u8; INDEX_BLOCKS_OFFSET_SIZE];
 
-        let bytes = fd.read(&mut buffer)?;
+        let bytes = nix::unistd::read(*fd, &mut buffer).unwrap();
+        // let bytes = fd.read(&mut buffer)?;
+
         assert_eq!(bytes, INDEX_BLOCKS_OFFSET_SIZE);
 
         let block_offset = read_u32(&buffer[..INDEX_BLOCK_OFFSET])?;
@@ -135,7 +150,8 @@ impl IndexBlock {
 
         let mut buffer = vec![0u8; key_size as usize];
 
-        let bytes = fd.read(&mut buffer)?;
+        let bytes = nix::unistd::read(*fd, &mut buffer).unwrap();
+        // let bytes = fd.read(&mut buffer)?;
         assert_eq!(bytes, key_size as usize);
 
         let first_key = FlexibleField::new(buffer);

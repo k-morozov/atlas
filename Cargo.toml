@@ -7,6 +7,7 @@ edition = "2021"
 rand = "0.9.0"
 log = {version = "0.4", features = ["std"]}
 simple_logger = "5.0"
+nix = {version="0.29.0", features = ["fs"]}
 
 
  [lib]
