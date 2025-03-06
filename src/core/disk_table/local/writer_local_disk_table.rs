@@ -1,7 +1,8 @@
 use std::fs;
-use std::io;
-use std::io::Write;
+use std::os::fd::{BorrowedFd, RawFd};
 use std::path::{Path, PathBuf};
+
+use nix::fcntl::OFlag;
 
 use crate::core::{disk_table::disk_table, field::FlexibleField};
 use crate::errors::Result;
@@ -10,15 +11,16 @@ pub type WriterFlexibleDiskTablePtr = disk_table::WriterDiskTablePtr<FlexibleFie
 
 pub struct WriterFlexibleDiskTable {
     disk_table_path: PathBuf,
-    buf: Option<io::BufWriter<fs::File>>,
+    fd: RawFd,
 }
 
 impl WriterFlexibleDiskTable {
     pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> WriterFlexibleDiskTablePtr {
-        let mut options = fs::OpenOptions::new();
-        options.create(true).append(true);
-
-        let fd = match options.open(disk_table_path.as_ref()) {
+        let fd: RawFd = match nix::fcntl::open(
+            disk_table_path.as_ref(),
+            OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY,
+            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+        ) {
             Ok(fd) => fd,
             Err(er) => {
                 panic!(
@@ -31,7 +33,7 @@ impl WriterFlexibleDiskTable {
 
         Box::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
-            buf: Some(io::BufWriter::new(fd)),
+            fd,
         })
     }
 }
@@ -45,32 +47,28 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskT
 
     fn remove(&self) -> Result<()> {
         fs::remove_file(self.disk_table_path.as_path())?;
+
         Ok(())
     }
 }
 
 impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
     fn write(&mut self, buffer: &[u8]) -> Result<()> {
-        match &mut self.buf {
-            Some(buf) => {
-                buf.write(buffer)?;
-            }
-            None => panic!("broken buffer"),
+        let fd = unsafe { BorrowedFd::borrow_raw(self.fd) };
+
+        match nix::unistd::write(fd, buffer) {
+            Ok(bytes) => assert_eq!(bytes, buffer.len()),
+            Err(er) => panic!("broken write from buffer to fd, error={}", er),
         }
 
         Ok(())
     }
 
     fn flush(&mut self) -> Result<()> {
-        match &mut self.buf {
-            Some(buffer) => {
-                buffer.flush()?;
-            }
-            None => panic!("broken buffer"),
-        }
+        let fd = self.fd;
 
-        let fd = self.buf.take().unwrap().into_inner().unwrap();
-        fd.sync_all()?;
+        nix::unistd::fsync(fd).unwrap();
+        nix::unistd::close(fd).unwrap();
 
         Ok(())
     }

@@ -8,7 +8,7 @@ use std::{
     thread,
 };
 
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 
 use crate::{
     core::{
@@ -111,7 +111,7 @@ impl OrderedStorage {
                     return;
                 }
 
-                info!("call flush");
+                trace!("call flush");
 
                 Self::save_mem_table(
                     m_mem_table.clone(),
@@ -141,7 +141,7 @@ impl OrderedStorage {
     ) {
         let mut lock = mem_table.write().unwrap();
 
-        debug!("call save_mem_table, size={}", lock.current_size());
+        trace!("call save_mem_table, size={}", lock.current_size());
 
         if lock.current_size() == 0 {
             return;
@@ -182,7 +182,7 @@ impl OrderedStorage {
         for merging_level in
             disk_tables_shard::SEGMENTS_MIN_LEVEL..=disk_tables_shard::SEGMENTS_MAX_LEVEL
         {
-            debug!("call merge_disk_tables, merging_level={}", merging_level);
+            trace!("call merge_disk_tables, merging_level={}", merging_level);
 
             let level_for_new_disk_table = if merging_level != disk_tables_shard::SEGMENTS_MAX_LEVEL
             {
@@ -198,21 +198,24 @@ impl OrderedStorage {
                 storage_path.as_path(),
             ) {
                 Some(new_disk_table) => new_disk_table,
-                None => break,
+                None => {
+                    debug!("no merge");
+                    break;
+                }
             };
 
-            if let Err(er) = shards.remove_tables_from_level(merging_level) {
+            if let Err(er) = shards.remove_level_and_put(
+                merging_level,
+                level_for_new_disk_table,
+                merged_disk_table,
+            ) {
                 panic!("failed remove merging disk table: error={}", er)
             }
 
             debug!(
-                "merged_disk_table: level={}, path={}, entries={}",
-                level_for_new_disk_table,
-                merged_disk_table.as_ref().get_path().display(),
-                merged_disk_table.as_ref().count_entries()
+                "merged_disk_table was finished: merging_level={}",
+                merging_level
             );
-
-            shards.put_disk_table_by_level(level_for_new_disk_table, merged_disk_table);
         }
     }
 

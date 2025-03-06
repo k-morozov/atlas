@@ -1,3 +1,5 @@
+use nix::errno::Errno;
+
 #[derive(Debug, PartialEq)]
 pub enum Error {
     IO(String),
@@ -37,6 +39,12 @@ impl<T> From<Error> for Result<T> {
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
+        Error::IO(err.to_string())
+    }
+}
+
+impl From<Errno> for Error {
+    fn from(err: Errno) -> Self {
         Error::IO(err.to_string())
     }
 }

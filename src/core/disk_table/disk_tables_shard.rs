@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use log::debug;
+use log::trace;
 
 use crate::errors::Result;
 
@@ -35,8 +35,41 @@ impl DiskTablesShards {
         }
     }
 
+    pub fn remove_level_and_put(
+        &self,
+        removing_level: Levels,
+        merged_level: Levels,
+        disk_table: ReaderDiskTablePtr,
+    ) -> Result<()> {
+        let mut lock = self.shards.write().unwrap();
+
+        assert!(lock.contains_key(&removing_level));
+
+        let removing_tables = lock.get(&removing_level).unwrap();
+        removing_tables.clear()?;
+
+        let mut no_level = false;
+        {
+            // let lock = self.shards.read().unwrap();
+            if !lock.contains_key(&merged_level) {
+                no_level = true;
+            }
+        }
+
+        // let mut lock = self.shards.write().unwrap();
+        if no_level {
+            lock.insert(merged_level, ShardLevel::new());
+        }
+
+        let shard = lock.get(&merged_level).expect("we checked key early");
+
+        shard.push(disk_table);
+
+        Ok(())
+    }
+
     pub fn put_disk_table_by_level(&self, level: Levels, disk_table: ReaderDiskTablePtr) {
-        debug!("call put_disk_table_by_level with level={}", level);
+        trace!("call put_disk_table_by_level with level={}", level);
 
         let mut no_level = false;
         {
@@ -55,10 +88,10 @@ impl DiskTablesShards {
 
         shard.push(disk_table);
 
-        debug!(
-            "count tables={} in level={} after push merged disk table",
+        trace!(
+            "merged disk talbe was appended to level={}, {} tables in level ",
+            level,
             shard.len(),
-            level
         );
 
         // @todo return status?
@@ -115,47 +148,28 @@ impl DiskTablesShards {
         merged_disk_table
     }
 
-    pub fn remove_tables_from_level(&self, level: Levels) -> Result<()> {
-        debug!("remove tables from level={}", level);
-
-        let lock = self.shards.read().unwrap();
-
-        assert!(lock.contains_key(&level));
-
-        let removing_tables = lock.get(&level).unwrap();
-        removing_tables.clear()?;
-
-        Ok(())
-    }
-
     pub fn is_ready_to_merge(&self, level: Levels) -> bool {
         let lock = self.shards.read().unwrap();
 
         if !lock.contains_key(&level) {
-            debug!("no key");
             return false;
         }
 
-        debug!(
-            "call is_ready_to_merge, level={}, size={}",
-            level,
-            lock[&level].len()
-        );
         lock[&level].len() == config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL
     }
 
     // workaround
     pub fn get(&self, key: &FlexibleField) -> Result<Option<FlexibleField>> {
-        for (_level, shard) in self.shards.read().unwrap().iter() {
-            for disk_table in shard.iter() {
+        let shards = self.shards.read().unwrap();
+
+        for (_level, shard) in shards.iter() {
+            for (_index, disk_table) in shard.iter().enumerate() {
                 match disk_table.read(key) {
                     Ok(v) => match v {
                         Some(v) => return Ok(Some(v)),
                         None => continue,
                     },
-                    Err(e) => {
-                        return Err(e);
-                    }
+                    Err(e) => return Err(e),
                 }
             }
         }
