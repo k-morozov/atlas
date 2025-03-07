@@ -12,11 +12,12 @@ pub struct DataBlock {
 }
 
 impl DataBlock {
-    pub fn new(fd: &mut fs::File, block_offset: u32, block_size: u32) -> Self {
-        let _base = fd.seek(SeekFrom::Start(block_offset as u64));
+    pub fn new(fd: &mut i32, block_offset: u32, block_size: u32) -> Self {
+        nix::unistd::lseek(*fd, block_offset as i64, nix::unistd::Whence::SeekSet).unwrap();
+        // let _base = fd.seek(SeekFrom::Start(block_offset as u64));
 
         let mut buffer = vec![0u8; block_size as usize];
-        let Ok(bytes) = fd.read(&mut buffer) else {
+        let Ok(bytes) = nix::unistd::read(*fd, &mut buffer) else {
             panic!("Failed read from disk")
         };
 

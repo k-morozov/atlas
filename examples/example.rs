@@ -1,4 +1,5 @@
 use std::sync::mpsc::channel;
+use std::time::{Duration, Instant};
 use std::{fs, io, thread};
 
 use log::{debug, info, warn};
@@ -13,7 +14,10 @@ use kvs::core::storage::{
 const TOTAL_VALUE: usize = 100_000;
 
 pub fn init() {
-    simple_logger::SimpleLogger::new().init().unwrap();
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Info)
+        .init()
+        .unwrap();
 }
 
 fn generate_random_bytes(start: u32, finish: u32) -> Vec<u8> {
@@ -80,31 +84,29 @@ fn main() -> io::Result<()> {
             }
         });
 
+        let mut durations = Vec::with_capacity(10000);
         for index in 0..TOTAL_VALUE {
             match rx.recv() {
                 Ok(entry) => {
-                    if index % 10000 == 0 {
-                        info!("thread 3: searching index={}", index);
+                    if index % 10000 == 0 && index != 0 {
+                        let total_nanos: u128 =
+                            durations.iter().map(|d: &Duration| d.as_nanos()).sum();
+                        let avg_nanos = total_nanos / durations.len() as u128;
+
+                        info!(
+                            "thread 3: proccessed index={}, avg get duration={:?}",
+                            index,
+                            Duration::from_nanos(avg_nanos as u64)
+                        );
+                        durations.clear();
                     }
 
+                    let start = Instant::now();
                     let result = table.get(entry.get_key()).unwrap();
-                    let expected = entry.get_value();
-                    if result.is_none() {
-                        // workaround - need to fix file's sync/flush
-                        warn!("Found none by index {}, expect value. Wait sync 2 sec for sync and repeat...", index);
-                        thread::sleep(std::time::Duration::from_secs(2));
+                    let duration = start.elapsed();
+                    durations.push(duration);
 
-                        let result = table.get(entry.get_key()).unwrap();
-                        if result.is_none() {
-                            assert!(
-                                false,
-                                "result is none again, index={}, expected {:?}",
-                                index, *expected
-                            );
-                        }
-                        assert_eq!(result.unwrap(), *expected, "expected {:?}", *expected);
-                        continue;
-                    }
+                    let expected = entry.get_value();
 
                     assert_eq!(result.unwrap(), *expected, "expected {:?}", *expected);
                 }

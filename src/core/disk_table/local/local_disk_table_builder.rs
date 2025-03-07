@@ -105,7 +105,9 @@ impl DiskTableBuilder {
     pub fn build(&mut self) -> Result<ReaderDiskTablePtr> {
         let Some(disk_table) = &mut self.building_disk_table else {
             assert!(self.data_block.is_none());
-            return Ok(ReaderFlexibleDiskTable::new(self.disk_table_path.as_path()));
+
+            let reader = ReaderFlexibleDiskTable::new(self.disk_table_path.as_path())?;
+            return Ok(reader);
         };
 
         if let Some(data_block) = &mut self.data_block {
@@ -149,6 +151,7 @@ impl DiskTableBuilder {
             }
         }
 
-        Ok(ReaderFlexibleDiskTable::new(self.disk_table_path.as_path()))
+        let reader = ReaderFlexibleDiskTable::new(self.disk_table_path.as_path())?;
+        Ok(reader)
     }
 }
