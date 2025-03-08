@@ -1,10 +1,11 @@
-use std::io;
 use std::io::Write;
+use std::io::{self, SeekFrom};
 use std::os::fd::{BorrowedFd, RawFd};
 use std::path::Path;
 
 use nix::fcntl;
 use nix::fcntl::OFlag;
+use nix::unistd::Whence;
 
 use crate::errors::Result;
 
@@ -12,15 +13,27 @@ pub(super) struct LocalDiskFileHandle {
     fd: RawFd,
 }
 
+pub(super) trait ReadSeek: std::io::Read + std::io::Seek + Send + Sync {}
+
 impl LocalDiskFileHandle {
-    pub fn new<P: AsRef<Path>>(disk_table_path: P) -> Result<Self> {
+    pub fn new_writer<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn std::io::Write>> {
         let fd = fcntl::open(
             disk_table_path.as_ref(),
             OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY,
             nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
         )?;
 
-        Ok(Self { fd })
+        Ok(Box::new(Self { fd }))
+    }
+
+    pub fn new_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
+        let fd = fcntl::open(
+            disk_table_path.as_ref(),
+            OFlag::O_RDONLY,
+            nix::sys::stat::Mode::empty(),
+        )?;
+
+        Ok(Box::new(Self { fd }))
     }
 }
 
@@ -41,6 +54,30 @@ impl std::io::Write for LocalDiskFileHandle {
         nix::unistd::fsync(self.fd)?;
 
         Ok(())
+    }
+}
+
+impl ReadSeek for LocalDiskFileHandle {}
+
+impl std::io::Read for LocalDiskFileHandle {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let bytes = nix::unistd::read(self.fd, buf)?;
+
+        Ok(bytes)
+    }
+}
+
+impl std::io::Seek for LocalDiskFileHandle {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        let (offset, whence) = match pos {
+            SeekFrom::Start(off) => (off as i64, Whence::SeekSet),
+            SeekFrom::End(off) => (off, Whence::SeekEnd),
+            SeekFrom::Current(off) => (off, Whence::SeekCur),
+        };
+
+        let new_offset = nix::unistd::lseek(self.fd, offset, whence)?;
+
+        Ok(new_offset as u64)
     }
 }
 

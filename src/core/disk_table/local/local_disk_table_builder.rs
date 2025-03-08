@@ -26,8 +26,8 @@ pub struct DiskTableBuilder {
 
 impl DiskTableBuilder {
     pub fn new<P: AsRef<Path>>(disk_table_path: P) -> Self {
-        let handle = match LocalDiskFileHandle::new(disk_table_path.as_ref()) {
-            Ok(h) => Box::new(h),
+        let handle = match LocalDiskFileHandle::new_writer(disk_table_path.as_ref()) {
+            Ok(h) => h,
             Err(er) => panic!("Failed create file handle: {}", er),
         };
 
