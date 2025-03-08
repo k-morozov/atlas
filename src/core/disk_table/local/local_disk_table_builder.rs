@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use super::local_disk_file_handle::LocalDiskFileHandle;
 use super::reader_local_disk_table::{ReaderDiskTablePtr, ReaderFlexibleDiskTable};
-use super::writer_local_disk_table::{WriterFlexibleDiskTable, WriterFlexibleDiskTablePtr};
 use crate::core::disk_table::local::block::{
     block::WriteToTable,
     data_block_buffer,
@@ -16,7 +16,7 @@ use crate::errors::Result;
 
 pub struct DiskTableBuilder {
     disk_table_path: PathBuf,
-    building_disk_table: Option<WriterFlexibleDiskTablePtr>,
+    building_disk_table: Option<Box<dyn std::io::Write>>,
     index_entries: Vec<Offset>,
     index_blocks: IndexBlocks,
     offset: u32,
@@ -26,9 +26,14 @@ pub struct DiskTableBuilder {
 
 impl DiskTableBuilder {
     pub fn new<P: AsRef<Path>>(disk_table_path: P) -> Self {
+        let handle = match LocalDiskFileHandle::new(disk_table_path.as_ref()) {
+            Ok(h) => Box::new(h),
+            Err(er) => panic!("Failed create file handle: {}", er),
+        };
+
         DiskTableBuilder {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
-            building_disk_table: Some(WriterFlexibleDiskTable::new(disk_table_path)),
+            building_disk_table: Some(handle),
             index_entries: Vec::<Offset>::new(),
             index_blocks: IndexBlocks::new(),
             offset: 0,

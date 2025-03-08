@@ -6,7 +6,6 @@ use crate::core::{
     storage::config,
 };
 
-use crate::core::disk_table::local::writer_local_disk_table::WriterFlexibleDiskTablePtr;
 use crate::errors::Result;
 
 use super::block;
@@ -110,7 +109,7 @@ impl IndexBlocks {
 }
 
 impl block::WriteToTable for IndexBlocks {
-    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+    fn write_to(&self, ptr: &mut Box<dyn std::io::Write>) -> Result<()> {
         assert_ne!(0, self.data.len());
 
         for index_block in &self.data {
@@ -168,7 +167,7 @@ impl IndexBlock {
 }
 
 impl block::WriteToTable for IndexBlock {
-    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+    fn write_to(&self, ptr: &mut Box<dyn std::io::Write>) -> Result<()> {
         let mut tmp = [0; INDEX_BLOCKS_OFFSET_SIZE];
 
         write_u32(&mut tmp[0..INDEX_BLOCK_OFFSET], self.block_offset)?;
