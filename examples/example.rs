@@ -97,7 +97,7 @@ fn main() -> io::Result<()> {
                             "thread 3: proccessed index={}, avg get duration={:?}, total duration={:?}",
                             index,
                             Duration::from_nanos(avg_nanos as u64),
-                            total_nanos
+                            Duration::from_nanos(total_nanos as u64),
                         );
                         durations.clear();
                     }
