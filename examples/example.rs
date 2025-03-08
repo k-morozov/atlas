@@ -94,9 +94,10 @@ fn main() -> io::Result<()> {
                         let avg_nanos = total_nanos / durations.len() as u128;
 
                         info!(
-                            "thread 3: proccessed index={}, avg get duration={:?}",
+                            "thread 3: proccessed index={}, avg get duration={:?}, total duration={:?}",
                             index,
-                            Duration::from_nanos(avg_nanos as u64)
+                            Duration::from_nanos(avg_nanos as u64),
+                            total_nanos
                         );
                         durations.clear();
                     }

@@ -1,30 +1,25 @@
-use std::fs;
-use std::os::fd::{BorrowedFd, RawFd};
+use std::io::Write;
 use std::path::{Path, PathBuf};
-
-use nix::fcntl::OFlag;
 
 use crate::core::{disk_table::disk_table, field::FlexibleField};
 use crate::errors::Result;
+
+use super::file_handle::FileHandle;
 
 pub type WriterFlexibleDiskTablePtr = disk_table::WriterDiskTablePtr<FlexibleField, FlexibleField>;
 
 pub struct WriterFlexibleDiskTable {
     disk_table_path: PathBuf,
-    fd: RawFd,
+    fd: FileHandle,
 }
 
 impl WriterFlexibleDiskTable {
     pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> WriterFlexibleDiskTablePtr {
-        let fd: RawFd = match nix::fcntl::open(
-            disk_table_path.as_ref(),
-            OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY,
-            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
-        ) {
+        let fd = match FileHandle::new_writer(disk_table_path.as_ref()) {
             Ok(fd) => fd,
             Err(er) => {
                 panic!(
-                    "Failed to create new segment. path={}, error= {}",
+                    "Failed to create file handle for writting. path={}, error= {}",
                     disk_table_path.as_ref().display(),
                     er
                 );
@@ -46,7 +41,7 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskT
     }
 
     fn remove(&self) -> Result<()> {
-        fs::remove_file(self.disk_table_path.as_path())?;
+        self.fd.remove()?;
 
         Ok(())
     }
@@ -54,22 +49,13 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for WriterFlexibleDiskT
 
 impl disk_table::Writer<FlexibleField, FlexibleField> for WriterFlexibleDiskTable {
     fn write(&mut self, buffer: &[u8]) -> Result<()> {
-        let fd = unsafe { BorrowedFd::borrow_raw(self.fd) };
-
-        match nix::unistd::write(fd, buffer) {
-            Ok(bytes) => assert_eq!(bytes, buffer.len()),
-            Err(er) => panic!("broken write from buffer to fd, error={}", er),
-        }
+        self.fd.write(buffer)?;
 
         Ok(())
     }
 
     fn flush(&mut self) -> Result<()> {
-        let fd = self.fd;
-
-        nix::unistd::fsync(fd).unwrap();
-        nix::unistd::close(fd).unwrap();
-
+        self.fd.flush()?;
         Ok(())
     }
 }
