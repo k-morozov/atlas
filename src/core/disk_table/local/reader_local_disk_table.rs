@@ -11,7 +11,7 @@ use crate::core::{
 };
 use crate::errors::Result;
 
-use super::local_disk_file_handle::{LocalDiskFileHandle, ReadSeek};
+use super::file_handle::{FileHandle, ReadSeek};
 
 pub type ReaderDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, FlexibleField>;
 
@@ -26,7 +26,7 @@ pub struct ReaderFlexibleDiskTable {
 // @todo drop
 impl ReaderFlexibleDiskTable {
     pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> Result<ReaderDiskTablePtr> {
-        let mut fd: Box<dyn ReadSeek> = LocalDiskFileHandle::new_reader(disk_table_path.as_ref())?;
+        let mut fd: Box<dyn ReadSeek> = FileHandle::new_reader(disk_table_path.as_ref())?;
         fd.seek(std::io::SeekFrom::End(
             -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
         ))

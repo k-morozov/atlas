@@ -9,13 +9,13 @@ use nix::unistd::Whence;
 
 use crate::errors::Result;
 
-pub(super) struct LocalDiskFileHandle {
+pub(super) struct FileHandle {
     fd: RawFd,
 }
 
 pub(super) trait ReadSeek: std::io::Read + std::io::Seek + Send + Sync {}
 
-impl LocalDiskFileHandle {
+impl FileHandle {
     pub fn new_writer<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn std::io::Write>> {
         let fd = fcntl::open(
             disk_table_path.as_ref(),
@@ -37,7 +37,7 @@ impl LocalDiskFileHandle {
     }
 }
 
-impl std::io::Write for LocalDiskFileHandle {
+impl std::io::Write for FileHandle {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let fd = unsafe { BorrowedFd::borrow_raw(self.fd) };
 
@@ -57,9 +57,9 @@ impl std::io::Write for LocalDiskFileHandle {
     }
 }
 
-impl ReadSeek for LocalDiskFileHandle {}
+impl ReadSeek for FileHandle {}
 
-impl std::io::Read for LocalDiskFileHandle {
+impl std::io::Read for FileHandle {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let bytes = nix::unistd::read(self.fd, buf)?;
 
@@ -67,7 +67,7 @@ impl std::io::Read for LocalDiskFileHandle {
     }
 }
 
-impl std::io::Seek for LocalDiskFileHandle {
+impl std::io::Seek for FileHandle {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         let (offset, whence) = match pos {
             SeekFrom::Start(off) => (off as i64, Whence::SeekSet),
@@ -81,7 +81,7 @@ impl std::io::Seek for LocalDiskFileHandle {
     }
 }
 
-impl Drop for LocalDiskFileHandle {
+impl Drop for FileHandle {
     fn drop(&mut self) {
         self.flush().expect("Doesn't expect the problem with sync");
         if let Err(er) = nix::unistd::close(self.fd) {

@@ -5,7 +5,7 @@ use crate::errors::Result;
 
 use super::disk_table::get_disk_table_path;
 use super::disk_tables_shard::DiskTablesShards;
-use super::local::local_disk_table_builder::DiskTableBuilder;
+use super::local::disk_table_builder::DiskTableBuilder;
 
 fn extract_level(disk_table: &str) -> Option<u8> {
     // segment_123_4.bin

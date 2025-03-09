@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use super::local_disk_file_handle::LocalDiskFileHandle;
+use super::file_handle::FileHandle;
 use super::reader_local_disk_table::{ReaderDiskTablePtr, ReaderFlexibleDiskTable};
 use crate::core::disk_table::local::block::{
     block::WriteToTable,
@@ -26,7 +26,7 @@ pub struct DiskTableBuilder {
 
 impl DiskTableBuilder {
     pub fn new<P: AsRef<Path>>(disk_table_path: P) -> Self {
-        let handle = match LocalDiskFileHandle::new_writer(disk_table_path.as_ref()) {
+        let handle = match FileHandle::new_writer(disk_table_path.as_ref()) {
             Ok(h) => h,
             Err(er) => panic!("Failed create file handle: {}", er),
         };

@@ -1,6 +1,6 @@
 use crate::core::{
-    disk_table::local::local_disk_file_handle::ReadSeek,
-    entry::flexible_user_entry::FlexibleUserEntry, field::FlexibleField, marshal::read_u32,
+    disk_table::local::file_handle::ReadSeek, entry::flexible_user_entry::FlexibleUserEntry,
+    field::FlexibleField, marshal::read_u32,
 };
 use std::io::{Read, Seek, SeekFrom};
 

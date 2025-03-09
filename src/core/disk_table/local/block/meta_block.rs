@@ -1,5 +1,5 @@
 use crate::core::{
-    disk_table::local::local_disk_file_handle::ReadSeek,
+    disk_table::local::file_handle::ReadSeek,
     field::{Field, FlexibleField},
     marshal::{read_u32, write_u32},
     storage::config,
