@@ -1,5 +1,4 @@
-extern crate test;
-use test::Bencher;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
@@ -40,16 +39,15 @@ fn random_entry() -> FlexibleUserEntry {
     FlexibleUserEntry::new(key, value)
 }
 
-#[bench]
-fn bench_table() {
+fn example_table() {
     init();
 
     info!("Prepare dir for example");
 
     let storage_path = "/tmp/kvs/examples/example_table";
 
-    if fs::exists(storage_path)? {
-        fs::remove_dir_all(storage_path)?;
+    if fs::exists(storage_path).unwrap() {
+        fs::remove_dir_all(storage_path).unwrap();
     }
 
     info!("Start example");
@@ -120,3 +118,10 @@ fn bench_table() {
         }
     });
 }
+
+pub fn criterion_benchmark(c: &mut Criterion) {
+    c.bench_function("my benchmark", |b| b.iter(|| example_table() ));
+}
+
+criterion_group!(benches, criterion_benchmark);
+criterion_main!(benches);

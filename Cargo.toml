@@ -10,8 +10,12 @@ simple_logger = "5.0"
 nix = {version="0.29.0", features = ["fs"]}
 
 
- [lib]
+[lib]
 
- [dev-dependencies]
- tempfile = "3.16"
- test = "0.1"
+[dev-dependencies]
+tempfile = "3.16"
+criterion = "0.3"
+
+[[bench]]
+name = "simple_bench"
+harness = false
