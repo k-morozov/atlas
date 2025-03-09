@@ -29,7 +29,7 @@ impl FileHandle {
     pub fn new_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
         let fd = fcntl::open(
             disk_table_path.as_ref(),
-            OFlag::O_RDONLY,
+            OFlag::O_RDONLY | OFlag::O_DIRECT,
             nix::sys::stat::Mode::empty(),
         )?;
 
