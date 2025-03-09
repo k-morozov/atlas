@@ -15,13 +15,6 @@ use kvs::core::storage::{
 
 const TOTAL_VALUE: usize = 100_000;
 
-pub fn init() {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
-}
-
 fn generate_random_bytes(start: u32, finish: u32) -> Vec<u8> {
     let bytes = rand::rng().random_range(start..=finish);
 
@@ -40,8 +33,6 @@ fn random_entry() -> FlexibleUserEntry {
 }
 
 fn example_table() {
-    init();
-
     info!("Prepare dir for example");
 
     let storage_path = "/tmp/kvs/examples/example_table";
@@ -120,7 +111,10 @@ fn example_table() {
 }
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("my benchmark", |b| b.iter(|| example_table() ));
+    let mut group = c.benchmark_group("sample-size-example");
+    group.significance_level(0.1).sample_size(10);
+
+    group.bench_function("my benchmark", |b| b.iter(|| example_table()));
 }
 
 criterion_group!(benches, criterion_benchmark);
