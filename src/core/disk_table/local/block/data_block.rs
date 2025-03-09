@@ -2,10 +2,7 @@ use crate::core::{
     disk_table::local::local_disk_file_handle::ReadSeek,
     entry::flexible_user_entry::FlexibleUserEntry, field::FlexibleField, marshal::read_u32,
 };
-use std::{
-    fs,
-    io::{Read, Seek, SeekFrom},
-};
+use std::io::{Read, Seek, SeekFrom};
 
 pub struct DataBlock {
     _index_entries: Vec<u32>,
@@ -14,9 +11,7 @@ pub struct DataBlock {
 
 impl DataBlock {
     pub fn new(fd: &mut Box<dyn ReadSeek>, block_offset: u32, block_size: u32) -> Self {
-        // nix::unistd::lseek(*fd, block_offset as i64, nix::unistd::Whence::SeekSet).unwrap();
         let _base = fd.seek(SeekFrom::Start(block_offset as u64));
-        // fd.seek(std::io::SeekFrom::End(-(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64)));
 
         let mut buffer = vec![0u8; block_size as usize];
         let Ok(bytes) = fd.read(&mut buffer) else {

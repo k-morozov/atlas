@@ -1,5 +1,3 @@
-use std::os::fd::RawFd;
-
 use crate::core::{
     disk_table::local::local_disk_file_handle::ReadSeek,
     field::{Field, FlexibleField},
@@ -33,13 +31,6 @@ pub struct Offset {
 
 // todo result
 pub fn metadata_index_blocks(base: i64, fd: &mut Box<dyn ReadSeek>) -> (i64, u32) {
-    // nix::unistd::lseek(
-    //     fd,
-    //     -(base + INDEX_BLOCKS_COUNT_SIZE as i64),
-    //     nix::unistd::Whence::SeekEnd,
-    // )
-    // .unwrap();
-
     fd.seek(std::io::SeekFrom::End(
         -(base + INDEX_BLOCKS_COUNT_SIZE as i64),
     ))
@@ -55,12 +46,6 @@ pub fn metadata_index_blocks(base: i64, fd: &mut Box<dyn ReadSeek>) -> (i64, u32
     let count_blocks = u32::from_le_bytes(buffer);
 
     // read count
-    // nix::unistd::lseek(
-    //     fd,
-    //     -(base + INDEX_BLOCKS_COUNT_SIZE as i64 + INDEX_BLOCKS_BASE as i64),
-    //     nix::unistd::Whence::SeekEnd,
-    // )
-    // .unwrap();
     fd.seek(std::io::SeekFrom::End(
         -(base + INDEX_BLOCKS_COUNT_SIZE as i64 + INDEX_BLOCKS_BASE as i64),
     ))
@@ -157,7 +142,6 @@ impl IndexBlock {
         let mut buffer = vec![0u8; key_size as usize];
 
         let bytes = fd.read(&mut buffer)?;
-        // let bytes = fd.read(&mut buffer)?;
         assert_eq!(bytes, key_size as usize);
 
         let first_key = FlexibleField::new(buffer);

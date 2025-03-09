@@ -1,11 +1,8 @@
 use std::cell::RefCell;
 use std::fs;
 use std::io::SeekFrom;
-use std::os::fd::RawFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-
-use nix::fcntl::{self, OFlag};
 
 use crate::core::disk_table::local::block::{data_block, data_block_buffer, meta_block};
 use crate::core::marshal::read_u32;
@@ -30,12 +27,6 @@ pub struct ReaderFlexibleDiskTable {
 impl ReaderFlexibleDiskTable {
     pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> Result<ReaderDiskTablePtr> {
         let mut fd: Box<dyn ReadSeek> = LocalDiskFileHandle::new_reader(disk_table_path.as_ref())?;
-        // read entries offsets
-        // nix::unistd::lseek(
-        //     fd,
-        //     -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
-        //     nix::unistd::Whence::SeekEnd,
-        // )?;
         fd.seek(std::io::SeekFrom::End(
             -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
         ))
@@ -77,12 +68,6 @@ impl ReaderFlexibleDiskTable {
         fd: &mut Box<dyn ReadSeek>,
         count_entries: u32,
     ) -> Result<meta_block::Offsets> {
-        // nix::unistd::lseek(
-        //     fd,
-        //     -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64
-        //         + count_entries as i64 * meta_block::INDEX_ENTRIES_SIZE as i64),
-        //     nix::unistd::Whence::SeekEnd,
-        // )?;
         fd.seek(std::io::SeekFrom::End(
             -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64
                 + count_entries as i64 * meta_block::INDEX_ENTRIES_SIZE as i64),
@@ -115,7 +100,6 @@ impl ReaderFlexibleDiskTable {
         start_offset: i64,
         count_blocks: u32,
     ) -> Result<meta_block::IndexBlocks> {
-        // nix::unistd::lseek(fd, -(start_offset), nix::unistd::Whence::SeekEnd)?;
         fd.seek(std::io::SeekFrom::End(-(start_offset)))?;
 
         let mut index_blocks = meta_block::IndexBlocks::with_capacity(count_blocks as usize);
@@ -195,11 +179,6 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
         let buffer = {
             let lock = self.fd.lock().unwrap();
 
-            // nix::unistd::lseek(
-            //     *lock.borrow_mut(),
-            //     offset.pos as i64,
-            //     nix::unistd::Whence::SeekSet,
-            // )?;
             lock.borrow_mut().seek(SeekFrom::Start(offset.pos as u64))?;
 
             assert_ne!(offset.size, 0);
