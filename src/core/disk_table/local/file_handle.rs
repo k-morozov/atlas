@@ -8,6 +8,7 @@ use nix::fcntl::OFlag;
 use nix::unistd::Whence;
 
 use crate::errors::Result;
+use crate::logicerr;
 
 pub(super) struct FileHandle {
     fd: RawFd,
@@ -15,12 +16,32 @@ pub(super) struct FileHandle {
 
 pub(super) trait ReadSeek: std::io::Read + std::io::Seek + Send + Sync {}
 
+pub fn sync_dir<P: AsRef<Path>>(path: P) -> Result<()> {
+    match path.as_ref().parent() {
+        Some(parent_path) => {
+            let parent_fd =
+                fcntl::open(parent_path, OFlag::O_RDONLY, nix::sys::stat::Mode::empty())?;
+            nix::unistd::fsync(parent_fd)?;
+        }
+        None => return logicerr!("disk table must have parent"),
+    }
+
+    Ok(())
+}
+
 impl FileHandle {
     pub fn new_writer<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn std::io::Write>> {
         let fd = fcntl::open(
             disk_table_path.as_ref(),
             OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY,
             nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+        )?;
+
+        sync_dir(
+            disk_table_path
+                .as_ref()
+                .parent()
+                .expect("disk table must have parent"),
         )?;
 
         Ok(Box::new(Self { fd }))

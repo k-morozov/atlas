@@ -11,7 +11,7 @@ use crate::core::{
 };
 use crate::errors::Result;
 
-use super::file_handle::{FileHandle, ReadSeek};
+use super::file_handle::{self, FileHandle, ReadSeek};
 
 pub type ReaderDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, FlexibleField>;
 
@@ -120,7 +120,14 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskT
     }
 
     fn remove(&self) -> Result<()> {
+        // @todo unlink through the file handle
         fs::remove_file(self.disk_table_path.as_path())?;
+        file_handle::sync_dir(
+            self.disk_table_path
+                .parent()
+                .expect("disk table must have parent"),
+        )?;
+
         Ok(())
     }
 }

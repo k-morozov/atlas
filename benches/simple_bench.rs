@@ -117,7 +117,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.measurement_time(Duration::new(90, 0));
     group.sample_size(20);
 
-    group.bench_function("my benchmark", |b| b.iter(|| example_table() ));
+    group.bench_function("my benchmark", |b| b.iter(|| example_table()));
     group.finish();
 }
 
