@@ -2,7 +2,7 @@ use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 use std::{fs, io, thread};
 
-use log::{debug, info, warn};
+use log::info;
 use rand::Rng;
 
 use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
