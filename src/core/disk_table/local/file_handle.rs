@@ -29,10 +29,15 @@ impl FileHandle {
     pub fn new_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
         let fd = fcntl::open(
             disk_table_path.as_ref(),
-            OFlag::O_RDONLY | OFlag::O_DIRECT,
+            OFlag::O_RDONLY,
             nix::sys::stat::Mode::empty(),
         )?;
 
+        #[cfg(target_os = "linux")]
+        {
+            fcntl::posix_fadvise(fd, 0, 0, fcntl::PosixFadviseAdvice::POSIX_FADV_RANDOM)?;
+        }
+        
         Ok(Box::new(Self { fd }))
     }
 }
