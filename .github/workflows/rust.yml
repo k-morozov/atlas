@@ -15,7 +15,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      
     - uses: actions/checkout@v4
+    - name: Show rustc version and platform
+      run: |
+        rustc --version --verbose
     - name: Style
       run: cargo fmt
     - name: Build
