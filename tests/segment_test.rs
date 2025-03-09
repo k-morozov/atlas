@@ -11,7 +11,7 @@ use tempfile::Builder;
 use kvs::core::{
     disk_table::{
         disk_table::get_disk_table_name, id::DiskTableID,
-        local::local_disk_table_builder::DiskTableBuilder,
+        local::disk_table_builder::DiskTableBuilder,
     },
     entry::flexible_user_entry::FlexibleUserEntry,
     field::FlexibleField,

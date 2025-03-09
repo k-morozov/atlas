@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 
 use super::block;
-use crate::core::disk_table::local::writer_local_disk_table::WriterFlexibleDiskTablePtr;
 use crate::core::{
     entry::flexible_user_entry::FlexibleUserEntry, marshal::write_u32,
     storage::config::DEFAULT_DATA_BLOCK_SIZE,
@@ -120,7 +119,7 @@ impl DataBlockBuffer {
 }
 
 impl block::WriteToTable for DataBlockBuffer {
-    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+    fn write_to(&self, ptr: &mut Box<dyn std::io::Write>) -> Result<()> {
         let offset = self.max_size - self.meta.size();
 
         let mut dst = self.block_data.borrow_mut();

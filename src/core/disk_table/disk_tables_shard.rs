@@ -10,7 +10,7 @@ use crate::errors::Result;
 
 use crate::core::{
     disk_table::{
-        disk_table::ReaderDiskTableIterator, local::local_disk_table_builder::DiskTableBuilder,
+        disk_table::ReaderDiskTableIterator, local::disk_table_builder::DiskTableBuilder,
         local::reader_local_disk_table::ReaderDiskTablePtr, shard_level::ShardLevel,
     },
     field::FlexibleField,

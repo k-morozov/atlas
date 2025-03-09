@@ -16,8 +16,7 @@ use crate::{
             disk_table::{get_disk_table_name, get_disk_table_name_by_level, get_disk_table_path},
             disk_tables_shard::{self, DiskTablesShards},
             local::{
-                local_disk_table_builder::DiskTableBuilder,
-                reader_local_disk_table::ReaderDiskTablePtr,
+                disk_table_builder::DiskTableBuilder, reader_local_disk_table::ReaderDiskTablePtr,
             },
             utils,
         },
