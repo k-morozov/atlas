@@ -114,7 +114,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("simple-run");
     // group.measurement_time(Duration::new(90, 0));
     group.warm_up_time(Duration::new(10, 0));
-    group.measurement_time(Duration::new(30, 0));
+    group.measurement_time(Duration::new(90, 0));
     group.sample_size(20);
 
     group.bench_function("my benchmark", |b| b.iter(|| example_table() ));
