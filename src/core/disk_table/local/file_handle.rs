@@ -33,10 +33,10 @@ impl FileHandle {
             nix::sys::stat::Mode::empty(),
         )?;
 
-        // #[cfg(target_os = "linux")]
-        // {
-        //     fcntl::posix_fadvise(fd, 0, 0, fcntl::PosixFadviseAdvice::POSIX_FADV_RANDOM)?;
-        // }
+        #[cfg(target_os = "linux")]
+        {
+            fcntl::posix_fadvise(fd, 0, 0, fcntl::PosixFadviseAdvice::POSIX_FADV_RANDOM)?;
+        }
 
         Ok(Box::new(Self { fd }))
     }
