@@ -113,7 +113,7 @@ fn example_table() {
 pub fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("sample-size-example");
     group.sample_size(10);
-    group.measurement_time(Duration::new(600, 0));
+    group.measurement_time(Duration::new(1800, 0));
     group.bench_function("my benchmark", |b| b.iter(|| example_table() ));
     group.finish();
 }
