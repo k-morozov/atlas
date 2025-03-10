@@ -1,9 +1,12 @@
+use std::alloc::{self, alloc};
 use std::cell::RefCell;
+use std::slice;
 
 use super::block;
 use crate::core::{
-    entry::flexible_user_entry::FlexibleUserEntry, marshal::write_u32,
-    storage::config::DEFAULT_DATA_BLOCK_SIZE,
+    entry::flexible_user_entry::FlexibleUserEntry,
+    marshal::write_u32,
+    storage::config::{DEFAULT_DATA_BLOCK_ALIGN, DEFAULT_DATA_BLOCK_SIZE},
 };
 use crate::errors::Result;
 
@@ -65,9 +68,33 @@ pub struct DataBlockBuffer {
 
 impl DataBlockBuffer {
     pub fn new() -> Self {
+        let layout =
+            alloc::Layout::from_size_align(DEFAULT_DATA_BLOCK_SIZE, DEFAULT_DATA_BLOCK_ALIGN)
+                .expect("expect no problem with layout");
+
+        let v = unsafe {
+            let ptr = alloc(layout) as *mut u8;
+            if ptr.is_null() {
+                panic!("Failed alloc for data block");
+            }
+
+            let buf = slice::from_raw_parts_mut(ptr, DEFAULT_DATA_BLOCK_SIZE);
+
+            let mut v = Vec::from_raw_parts(
+                buf.as_mut_ptr(),
+                DEFAULT_DATA_BLOCK_SIZE,
+                DEFAULT_DATA_BLOCK_SIZE,
+            );
+            for i in 0..DEFAULT_DATA_BLOCK_SIZE {
+                v[i] = 0;
+            }
+
+            v
+        };
+
         Self {
             // @todo change
-            block_data: RefCell::new(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]),
+            block_data: RefCell::new(v),
             max_size: DEFAULT_DATA_BLOCK_SIZE,
             current_pos: 0,
             meta: Metadata::new(),
@@ -107,10 +134,16 @@ impl DataBlockBuffer {
     }
 
     pub fn reset(&mut self) {
-        let mut old = self
-            .block_data
-            .replace(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]);
-        old.clear();
+        // let mut old = self
+        //     .block_data
+        //     .replace(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]);
+        // old.clear();
+
+        let mut data = self
+            .block_data.borrow_mut();
+        for i in 0..DEFAULT_DATA_BLOCK_SIZE {
+            data[i] = 0;
+        }
 
         self.current_pos = 0;
 

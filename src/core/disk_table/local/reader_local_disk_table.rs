@@ -17,6 +17,7 @@ pub type ReaderDiskTablePtr = disk_table::ReaderDiskTablePtr<FlexibleField, Flex
 
 pub struct ReaderFlexibleDiskTable {
     disk_table_path: PathBuf,
+    index_table_path: PathBuf,
     fd: Mutex<RefCell<Box<dyn ReadSeek>>>,
     count_entries: u32,
     entries_offsets: meta_block::Offsets,
@@ -25,39 +26,51 @@ pub struct ReaderFlexibleDiskTable {
 
 // @todo drop
 impl ReaderFlexibleDiskTable {
-    pub(super) fn new<P: AsRef<Path>>(disk_table_path: P) -> Result<ReaderDiskTablePtr> {
-        let mut fd: Box<dyn ReadSeek> = FileHandle::new_reader(disk_table_path.as_ref())?;
-        fd.seek(std::io::SeekFrom::End(
-            -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
-        ))
-        .unwrap();
+    pub(super) fn new<P: AsRef<Path>>(
+        disk_table_path: P,
+        index_table_path: P,
+    ) -> Result<ReaderDiskTablePtr> {
+        let mut index_fd: Box<dyn ReadSeek> = FileHandle::new_reader(index_table_path.as_ref())?;
+        index_fd
+            .seek(std::io::SeekFrom::End(
+                -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
+            ))
+            .unwrap();
 
         let mut buffer = [0u8; meta_block::INDEX_ENTRIES_COUNT_SIZE];
 
-        match fd.read(&mut buffer) {
+        match index_fd.read(&mut buffer) {
             Ok(bytes) => assert_eq!(bytes, meta_block::INDEX_ENTRIES_COUNT_SIZE),
             Err(er) => return Err(er.into()),
         }
 
         let count_entries = u32::from_le_bytes(buffer);
-        let entries_offsets = ReaderFlexibleDiskTable::read_index_entries(&mut fd, count_entries)?;
+        let entries_offsets =
+            ReaderFlexibleDiskTable::read_index_entries(&mut index_fd, count_entries)?;
 
         assert_ne!(entries_offsets.len(), 0);
 
         let base = (meta_block::INDEX_ENTRIES_COUNT_SIZE
             + count_entries as usize * meta_block::INDEX_ENTRIES_SIZE) as i64;
 
-        let (offset_index_blocks, count_blocks) = meta_block::metadata_index_blocks(base, &mut fd);
+        let (offset_index_blocks, count_blocks) =
+            meta_block::metadata_index_blocks(base, &mut index_fd);
 
-        let index_blocks =
-            ReaderFlexibleDiskTable::read_index_blocks(&mut fd, offset_index_blocks, count_blocks)?;
+        let index_blocks = ReaderFlexibleDiskTable::read_index_blocks(
+            &mut index_fd,
+            offset_index_blocks,
+            count_blocks,
+        )?;
 
         assert_ne!(index_blocks.len(), 0);
         assert_ne!(index_blocks.size(), 0);
 
+        let data_fd: Box<dyn ReadSeek> = FileHandle::new_reader(disk_table_path.as_ref())?;
+
         Ok(Arc::new(Self {
             disk_table_path: disk_table_path.as_ref().to_path_buf(),
-            fd: Mutex::new(RefCell::new(fd)),
+            index_table_path: index_table_path.as_ref().to_path_buf(),
+            fd: Mutex::new(RefCell::new(data_fd)),
             count_entries,
             entries_offsets,
             index_blocks,
@@ -122,12 +135,15 @@ impl disk_table::DiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskT
     fn remove(&self) -> Result<()> {
         // @todo unlink through the file handle
         fs::remove_file(self.disk_table_path.as_path())?;
+        fs::remove_file(self.index_table_path.as_path())?;
+
         file_handle::sync_dir(
             self.disk_table_path
                 .parent()
                 .expect("disk table must have parent"),
         )?;
 
+        // sync?
         Ok(())
     }
 }

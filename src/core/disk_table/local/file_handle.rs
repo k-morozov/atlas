@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::io::{self, SeekFrom};
 use std::os::fd::{BorrowedFd, RawFd};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use nix::fcntl;
 use nix::fcntl::OFlag;
@@ -12,6 +12,7 @@ use crate::logicerr;
 
 pub(super) struct FileHandle {
     fd: RawFd,
+    disk_table_path: PathBuf,
 }
 
 pub(super) trait ReadSeek: std::io::Read + std::io::Seek + Send + Sync {}
@@ -30,21 +31,38 @@ pub fn sync_dir<P: AsRef<Path>>(path: P) -> Result<()> {
 }
 
 impl FileHandle {
-    pub fn new_writer<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn std::io::Write>> {
+    pub fn new_data_writer<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn std::io::Write>> {
         let fd = fcntl::open(
             disk_table_path.as_ref(),
+            OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY | OFlag::O_DIRECT,
+            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+        )?;
+
+        let disk_table_path = disk_table_path.as_ref().to_path_buf();
+        Ok(Box::new(Self {
+            fd,
+            disk_table_path,
+        }))
+    }
+    pub fn new_index_writer<P: AsRef<Path>>(index_table_path: P) -> Result<Box<dyn std::io::Write>> {
+        let fd = fcntl::open(
+            index_table_path.as_ref(),
             OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY,
             nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
         )?;
 
         sync_dir(
-            disk_table_path
+            index_table_path
                 .as_ref()
                 .parent()
                 .expect("disk table must have parent"),
         )?;
 
-        Ok(Box::new(Self { fd }))
+        let disk_table_path = index_table_path.as_ref().to_path_buf();
+        Ok(Box::new(Self {
+            fd,
+            disk_table_path,
+        }))
     }
 
     pub fn new_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
@@ -59,7 +77,13 @@ impl FileHandle {
             fcntl::posix_fadvise(fd, 0, 0, fcntl::PosixFadviseAdvice::POSIX_FADV_RANDOM)?;
         }
 
-        Ok(Box::new(Self { fd }))
+        let disk_table_path = disk_table_path.as_ref().to_path_buf();
+
+        // @todo remove
+        Ok(Box::new(Self {
+            fd,
+            disk_table_path,
+        }))
     }
 }
 
@@ -72,12 +96,22 @@ impl std::io::Write for FileHandle {
                 assert_eq!(bytes, buf.len());
                 return Ok(bytes);
             }
-            Err(er) => panic!("broken write from buffer to fd, error={}", er),
+            Err(er) => panic!(
+                "broken write {} bytes from buffer to fd, error={}",
+                buf.len(),
+                er
+            ),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         nix::unistd::fsync(self.fd)?;
+
+        let parent_path = self.disk_table_path.parent().expect("we have a parents");
+        // sync_dir(parent_path)?;
+
+        let parent_fd = fcntl::open(parent_path, OFlag::O_RDONLY, nix::sys::stat::Mode::empty())?;
+        nix::unistd::fsync(parent_fd)?;
 
         Ok(())
     }

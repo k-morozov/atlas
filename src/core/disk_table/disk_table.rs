@@ -28,23 +28,36 @@ pub trait DiskTable<K, V> {
 pub trait WriterDiskTable<K, V>: DiskTable<K, V> + Writer<K, V> {}
 pub trait ReaderDiskTable<K, V>: DiskTable<K, V> + Reader<K, V> + Send + Sync {}
 
-pub fn get_disk_table_path(storage_path: &Path, segment_name: &str) -> PathBuf {
+pub fn get_disk_table_path(
+    storage_path: &Path,
+    disk_table_name: &str,
+    index_table_name: &str,
+) -> (PathBuf, PathBuf) {
     let disk_table_path = format!(
         "{}/segment/{}",
         storage_path.to_str().unwrap(),
-        segment_name
+        disk_table_name
+    );
+    let index_table_path = format!(
+        "{}/segment/{}",
+        storage_path.to_str().unwrap(),
+        index_table_name
     );
 
-    PathBuf::from(disk_table_path)
+    (
+        PathBuf::from(disk_table_path),
+        PathBuf::from(index_table_path),
+    )
 }
 
-pub fn get_disk_table_name(disk_table_id: DiskTableID) -> String {
+pub fn get_disk_table_name(disk_table_id: DiskTableID) -> (String, String) {
     get_disk_table_name_by_level(disk_table_id, 1)
 }
 
-pub fn get_disk_table_name_by_level(disk_table_id: DiskTableID, level: Levels) -> String {
-    let segment_name = format!("segment_{:07}_{}.bin", disk_table_id, level);
-    segment_name
+pub fn get_disk_table_name_by_level(disk_table_id: DiskTableID, level: Levels) -> (String, String) {
+    let disk_table_name = format!("segment_{:07}_{}.bin", disk_table_id, level);
+    let index_table_name = format!("segment_{:07}_{}.idx", disk_table_id, level);
+    (disk_table_name, index_table_name)
 }
 
 pub struct ReaderDiskTableIterator<'a, K, V> {

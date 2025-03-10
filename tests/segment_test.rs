@@ -56,12 +56,17 @@ fn spawn_get_entries_for_range<'a, 'b>(
 #[test]
 fn simple_flexible_segment() -> io::Result<()> {
     // let table_path = Path::new("/tmp/kvs/test/simple_flexible_segment");
-    let segment_name = get_disk_table_name(DiskTableID::from(12));
+    let (disk_table_name, index_table_name) = get_disk_table_name(DiskTableID::from(12));
     let disk_table_path = format!(
         "/tmp/kvs/test/simple_flexible_segment/segment/{}",
-        segment_name
+        disk_table_name
+    );
+    let index_table_path = format!(
+        "/tmp/kvs/test/simple_flexible_segment/segment/{}",
+        index_table_name
     );
     let disk_table_path: &Path = Path::new(&disk_table_path);
+    let index_table_path: &Path = Path::new(&index_table_path);
 
     if let Some(parent) = disk_table_path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -85,7 +90,7 @@ fn simple_flexible_segment() -> io::Result<()> {
     let segment = entries
         .into_iter()
         .fold(
-            DiskTableBuilder::new(disk_table_path),
+            DiskTableBuilder::new(disk_table_path, index_table_path),
             |mut builder, entry| {
                 builder.append_entry(&entry);
                 builder
