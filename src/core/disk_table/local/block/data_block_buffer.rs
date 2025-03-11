@@ -1,8 +1,7 @@
-use std::alloc::{self, alloc};
 use std::cell::RefCell;
-use std::slice;
 
 use super::block;
+use crate::common::memory::alloc_aligned;
 use crate::core::{
     entry::flexible_user_entry::FlexibleUserEntry,
     marshal::write_u32,
@@ -68,33 +67,11 @@ pub struct DataBlockBuffer {
 
 impl DataBlockBuffer {
     pub fn new() -> Self {
-        let layout =
-            alloc::Layout::from_size_align(DEFAULT_DATA_BLOCK_SIZE, DEFAULT_DATA_BLOCK_ALIGN)
-                .expect("expect no problem with layout");
-
-        let v = unsafe {
-            let ptr = alloc(layout) as *mut u8;
-            if ptr.is_null() {
-                panic!("Failed alloc for data block");
-            }
-
-            let buf = slice::from_raw_parts_mut(ptr, DEFAULT_DATA_BLOCK_SIZE);
-
-            let mut v = Vec::from_raw_parts(
-                buf.as_mut_ptr(),
-                DEFAULT_DATA_BLOCK_SIZE,
-                DEFAULT_DATA_BLOCK_SIZE,
-            );
-            for i in 0..DEFAULT_DATA_BLOCK_SIZE {
-                v[i] = 0;
-            }
-
-            v
-        };
+        let buffer = alloc_aligned(DEFAULT_DATA_BLOCK_SIZE, DEFAULT_DATA_BLOCK_ALIGN);
 
         Self {
             // @todo change
-            block_data: RefCell::new(v),
+            block_data: RefCell::new(buffer),
             max_size: DEFAULT_DATA_BLOCK_SIZE,
             current_pos: 0,
             meta: Metadata::new(),
@@ -134,14 +111,10 @@ impl DataBlockBuffer {
     }
 
     pub fn reset(&mut self) {
-        let mut data = self
-            .block_data.borrow_mut();
-        for i in 0..DEFAULT_DATA_BLOCK_SIZE {
-            data[i] = 0;
-        }
+        let mut data = self.block_data.borrow_mut();
 
+        data.fill(0);
         self.current_pos = 0;
-
         self.meta.reset();
     }
 }

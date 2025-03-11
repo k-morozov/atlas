@@ -44,7 +44,9 @@ impl FileHandle {
             disk_table_path,
         }))
     }
-    pub fn new_index_writer<P: AsRef<Path>>(index_table_path: P) -> Result<Box<dyn std::io::Write>> {
+    pub fn new_index_writer<P: AsRef<Path>>(
+        index_table_path: P,
+    ) -> Result<Box<dyn std::io::Write>> {
         let fd = fcntl::open(
             index_table_path.as_ref(),
             OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY,

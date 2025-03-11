@@ -30,7 +30,8 @@ impl ReaderFlexibleDiskTable {
         disk_table_path: P,
         index_table_path: P,
     ) -> Result<ReaderDiskTablePtr> {
-        let mut index_fd: Box<dyn ReadSeek> = FileHandle::new_index_reader(index_table_path.as_ref())?;
+        let mut index_fd: Box<dyn ReadSeek> =
+            FileHandle::new_index_reader(index_table_path.as_ref())?;
         index_fd
             .seek(std::io::SeekFrom::End(
                 -(meta_block::INDEX_ENTRIES_COUNT_SIZE as i64),
