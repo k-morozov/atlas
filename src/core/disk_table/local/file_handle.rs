@@ -65,7 +65,28 @@ impl FileHandle {
         }))
     }
 
-    pub fn new_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
+    pub fn new_data_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
+        let fd = fcntl::open(
+            disk_table_path.as_ref(),
+            OFlag::O_RDONLY | OFlag::O_DIRECT,
+            nix::sys::stat::Mode::empty(),
+        )?;
+
+        // #[cfg(target_os = "linux")]
+        // {
+        //     fcntl::posix_fadvise(fd, 0, 0, fcntl::PosixFadviseAdvice::POSIX_FADV_RANDOM)?;
+        // }
+
+        let disk_table_path = disk_table_path.as_ref().to_path_buf();
+
+        // @todo remove
+        Ok(Box::new(Self {
+            fd,
+            disk_table_path,
+        }))
+    }
+
+    pub fn new_index_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
         let fd = fcntl::open(
             disk_table_path.as_ref(),
             OFlag::O_RDONLY,

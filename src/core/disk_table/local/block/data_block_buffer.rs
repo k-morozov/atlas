@@ -134,11 +134,6 @@ impl DataBlockBuffer {
     }
 
     pub fn reset(&mut self) {
-        // let mut old = self
-        //     .block_data
-        //     .replace(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]);
-        // old.clear();
-
         let mut data = self
             .block_data.borrow_mut();
         for i in 0..DEFAULT_DATA_BLOCK_SIZE {
