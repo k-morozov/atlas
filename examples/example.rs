@@ -2,6 +2,7 @@ use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 use std::{fs, io, thread};
 
+use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 use log::info;
 use rand::Rng;
 
@@ -10,6 +11,7 @@ use kvs::core::field::{Field, FlexibleField};
 use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };
+use tempfile::Builder;
 
 const TOTAL_VALUE: usize = 100_000;
 
@@ -42,11 +44,11 @@ fn main() -> io::Result<()> {
 
     info!("Prepare dir for example");
 
-    let storage_path = "/tmp/kvs/examples/example_table";
-
-    if fs::exists(storage_path)? {
-        fs::remove_dir_all(storage_path)?;
-    }
+    let tmp_dir = Builder::new()
+        .prefix(DEFAULT_TEST_TABLES_PATH)
+        .tempdir()
+        .unwrap();
+    let storage_path = tmp_dir.path().join("example_table");
 
     info!("Start example");
 

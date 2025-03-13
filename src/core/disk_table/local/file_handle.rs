@@ -12,7 +12,7 @@ use crate::logicerr;
 
 pub(super) struct FileHandle {
     fd: RawFd,
-    disk_table_path: PathBuf,
+    table_path: PathBuf,
 }
 
 pub trait ReadSeek: std::io::Read + std::io::Seek + Send + Sync {}
@@ -41,7 +41,7 @@ impl FileHandle {
         let disk_table_path = disk_table_path.as_ref().to_path_buf();
         Ok(Box::new(Self {
             fd,
-            disk_table_path,
+            table_path: disk_table_path,
         }))
     }
     pub fn new_index_writer<P: AsRef<Path>>(
@@ -63,7 +63,7 @@ impl FileHandle {
         let disk_table_path = index_table_path.as_ref().to_path_buf();
         Ok(Box::new(Self {
             fd,
-            disk_table_path,
+            table_path: disk_table_path,
         }))
     }
 
@@ -84,13 +84,13 @@ impl FileHandle {
         // @todo remove
         Ok(Box::new(Self {
             fd,
-            disk_table_path,
+            table_path: disk_table_path,
         }))
     }
 
-    pub fn new_index_reader<P: AsRef<Path>>(disk_table_path: P) -> Result<Box<dyn ReadSeek>> {
+    pub fn new_index_reader<P: AsRef<Path>>(index_table_path: P) -> Result<Box<dyn ReadSeek>> {
         let fd = fcntl::open(
-            disk_table_path.as_ref(),
+            index_table_path.as_ref(),
             OFlag::O_RDONLY,
             nix::sys::stat::Mode::empty(),
         )?;
@@ -100,12 +100,12 @@ impl FileHandle {
             fcntl::posix_fadvise(fd, 0, 0, fcntl::PosixFadviseAdvice::POSIX_FADV_RANDOM)?;
         }
 
-        let disk_table_path = disk_table_path.as_ref().to_path_buf();
+        let index_table_path = index_table_path.as_ref().to_path_buf();
 
         // @todo remove
         Ok(Box::new(Self {
             fd,
-            disk_table_path,
+            table_path: index_table_path,
         }))
     }
 }
@@ -130,11 +130,7 @@ impl std::io::Write for FileHandle {
     fn flush(&mut self) -> io::Result<()> {
         nix::unistd::fsync(self.fd)?;
 
-        let parent_path = self.disk_table_path.parent().expect("we have a parents");
-        // sync_dir(parent_path)?;
-
-        let parent_fd = fcntl::open(parent_path, OFlag::O_RDONLY, nix::sys::stat::Mode::empty())?;
-        nix::unistd::fsync(parent_fd)?;
+        sync_dir(self.table_path.as_path()).unwrap();
 
         Ok(())
     }

@@ -243,7 +243,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
         &self,
         index: usize,
     ) -> Option<data_block::DataBlock<FlexibleField, FlexibleField>> {
-        if self.index_blocks.len() >= index {
+        if index >= self.index_blocks.len() {
             return None;
         }
 

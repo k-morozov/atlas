@@ -1,4 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
+use tempfile::Builder;
 
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
@@ -35,11 +37,11 @@ fn random_entry() -> FlexibleUserEntry {
 fn example_table() {
     info!("Prepare dir for example");
 
-    let storage_path = "/tmp/kvs/examples/example_table";
-
-    if fs::exists(storage_path).unwrap() {
-        fs::remove_dir_all(storage_path).unwrap();
-    }
+    let tmp_dir = Builder::new()
+        .prefix(DEFAULT_TEST_TABLES_PATH)
+        .tempdir()
+        .unwrap();
+    let storage_path = tmp_dir.path().join("example_table");
 
     info!("Start example");
 

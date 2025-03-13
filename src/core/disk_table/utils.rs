@@ -47,11 +47,11 @@ pub fn get_disk_tables(storage_path: &Path) -> Result<DiskTablesShards> {
                             );
 
                             // @todo
-                            let disk_table =
+                            let reader_disk_table =
                                 DiskTableBuilder::from(disk_table_path, index_table_path)
                                     .build()
                                     .unwrap();
-                            Some((level, disk_table))
+                            Some((level, reader_disk_table))
                         }
                         None => panic!("failed parse disk table name ={}.", disk_table_name),
                     };
@@ -64,8 +64,8 @@ pub fn get_disk_tables(storage_path: &Path) -> Result<DiskTablesShards> {
             result
         })
         .fold(DiskTablesShards::new(), |table, res| {
-            if let Some((level, disk_table)) = res {
-                table.put_disk_table_by_level(level, disk_table);
+            if let Some((level, reader_disk_table)) = res {
+                table.put_disk_table_by_level(level, reader_disk_table);
             }
             table
         });

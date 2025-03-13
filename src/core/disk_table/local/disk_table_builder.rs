@@ -78,6 +78,9 @@ impl DiskTableBuilder {
             let is_block_empty = data_block.empty();
             match data_block.append(entry) {
                 Ok(0) => {
+                    if is_block_empty {
+                        panic!("problem with size entry and data block size")
+                    }
                     let remaining_bytes = data_block.remaining_size();
                     self.offset += remaining_bytes as u32;
 
@@ -123,6 +126,7 @@ impl DiskTableBuilder {
             return Ok(());
         };
 
+        assert_ne!(self.index_entries.len(), 0);
         assert_ne!(self.index_blocks.len(), 0);
         assert_ne!(self.index_blocks.size(), 0);
 
@@ -160,16 +164,21 @@ impl DiskTableBuilder {
     }
 
     pub fn build(&mut self) -> Result<ReaderDiskTablePtr> {
-        let Some(disk_table) = &mut self.building_disk_table else {
+        if self.building_disk_table.is_none() {
             assert!(self.data_block.is_none());
+            assert!(self.index_blocks.len() == 0);
 
-            self.write_index_table()?;
+            // self.write_index_table()?;
 
             let reader = ReaderFlexibleDiskTable::new(
                 self.disk_table_path.as_path(),
                 self.index_table_path.as_path(),
             )?;
             return Ok(reader);
+        };
+
+        let Some(disk_table) = &mut self.building_disk_table else {
+            panic!("We are building disk table")
         };
 
         if let Some(data_block) = &mut self.data_block {
