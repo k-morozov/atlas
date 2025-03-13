@@ -15,7 +15,7 @@ pub(super) struct FileHandle {
     disk_table_path: PathBuf,
 }
 
-pub(super) trait ReadSeek: std::io::Read + std::io::Seek + Send + Sync {}
+pub trait ReadSeek: std::io::Read + std::io::Seek + Send + Sync {}
 
 pub fn sync_dir<P: AsRef<Path>>(path: P) -> Result<()> {
     match path.as_ref().parent() {

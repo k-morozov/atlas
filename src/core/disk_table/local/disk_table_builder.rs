@@ -10,7 +10,7 @@ use crate::core::disk_table::local::block::{
     meta_block::{IndexBlock, IndexBlocks, Offset},
 };
 use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
-use crate::core::field::FieldSize;
+use crate::core::field::Field;
 use crate::core::marshal::write_u32;
 use crate::errors::Result;
 

@@ -5,15 +5,17 @@ pub struct FlexibleField {
     pub data: Vec<u8>,
 }
 
-impl FlexibleField {
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-}
-
 impl Field for FlexibleField {
     fn new<T: Into<Vec<u8>>>(data: T) -> Self {
         Self { data: data.into() }
+    }
+
+    fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn size(&self) -> usize {
+        self.len() * size_of::<u8>()
     }
 
     fn data(&self) -> &[u8] {
@@ -24,17 +26,10 @@ impl Field for FlexibleField {
     }
 }
 
-impl FieldSize for FlexibleField {
-    fn size(&self) -> usize {
-        self.len() * size_of::<u8>()
-    }
-}
-
 pub trait Field {
     fn new<T: Into<Vec<u8>>>(data: T) -> Self;
+    fn len(&self) -> usize;
+    fn size(&self) -> usize;
     fn data(&self) -> &[u8];
     fn mut_data(&mut self) -> &mut [u8];
-}
-pub trait FieldSize {
-    fn size(&self) -> usize;
 }

@@ -2,8 +2,8 @@ use crate::{
     common::memory::alloc_aligned,
     core::{
         disk_table::local::file_handle::ReadSeek,
-        entry::{flexible_user_entry::FlexibleUserEntry, user_entry},
-        field::{Field, FieldSize, FlexibleField},
+        entry::user_entry,
+        field::Field,
         marshal::read_u32,
         storage::config::{DEFAULT_DATA_BLOCK_ALIGN, DEFAULT_DATA_BLOCK_SIZE},
     },
@@ -17,8 +17,8 @@ pub struct DataBlock<K, V> {
 
 impl<'a, K, V> DataBlock<K, V>
 where
-    K: Field + FieldSize + Ord + PartialEq + Eq + PartialOrd + Clone,
-    V: Field + FieldSize + Clone,
+    K: Field + Ord + PartialEq + Eq + PartialOrd + Clone,
+    V: Field + Clone,
 {
     pub fn new(fd: &mut Box<dyn ReadSeek>, block_offset: u32, block_size: u32) -> Self {
         let _base = fd.seek(SeekFrom::Start(block_offset as u64));
@@ -92,8 +92,8 @@ pub struct DataBlockIterator<K, V> {
 
 impl<'a, K, V> Iterator for DataBlockIterator<K, V>
 where
-    K: Field + FieldSize + Ord + PartialEq + Eq + PartialOrd + Clone,
-    V: Field + FieldSize + Clone,
+    K: Field + Ord + PartialEq + Eq + PartialOrd + Clone,
+    V: Field + Clone,
 {
     type Item = user_entry::UserEntry<K, V>;
 

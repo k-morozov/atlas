@@ -1,4 +1,4 @@
-use crate::core::field::{Field, FieldSize};
+use crate::core::field::Field;
 use crate::core::marshal::{read_u32, write_data, write_u32};
 use crate::errors::Result;
 use crate::logicerr;
@@ -8,8 +8,8 @@ pub struct UserEntry<K, V>(K, V);
 
 impl<K, V> UserEntry<K, V>
 where
-    K: Field + FieldSize + PartialEq + Eq + PartialOrd,
-    V: Field + FieldSize,
+    K: Field + PartialEq + Eq + PartialOrd,
+    V: Field,
 {
     pub fn new(key: K, value: V) -> Self {
         UserEntry { 0: key, 1: value }

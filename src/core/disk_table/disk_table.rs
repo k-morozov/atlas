@@ -4,9 +4,8 @@ use std::sync::Arc;
 use super::disk_tables_shard::Levels;
 use super::id::DiskTableID;
 use super::local::block::data_block;
-use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
 use crate::core::entry::user_entry::UserEntry;
-use crate::core::field::{Field, FieldSize, FlexibleField};
+use crate::core::field::Field;
 use crate::errors::Result;
 
 pub type WriterDiskTablePtr<K, V> = Box<dyn WriterDiskTable<K, V>>;
@@ -24,6 +23,7 @@ pub trait Reader<K, V> {
     fn count_entries(&self) -> u32;
 }
 
+// @todo
 pub trait DiskTable<K, V> {
     fn get_path(&self) -> &Path;
     fn remove(&self) -> Result<()>;
@@ -72,23 +72,23 @@ pub struct ReaderDiskTableIterator<'a, K, V> {
 
 impl<'a, K, V> Iterator for ReaderDiskTableIterator<'a, K, V>
 where
-    K: Field + FieldSize + Clone + Ord + PartialEq + Eq + PartialOrd,
-    V: Field + FieldSize + Clone,
+    K: Field + Clone + Ord,
+    V: Field + Clone,
 {
     type Item = UserEntry<K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.block_it {
-            Some(p) => {
-                let res = self.block_it.as_mut().expect("set early").next();
+            Some(it) => {
+                let res = it.next();
                 if res.is_none() {
                     let next_block = self.disk_table.read_block(self.index)?;
                     self.index += 1;
 
                     let it = next_block.into_iter();
-                    self.block_it.insert(Box::new(it));
+                    let it = self.block_it.insert(Box::new(it));
 
-                    let res = self.block_it.as_mut().expect("set early").next();
+                    let res = it.next();
                     return res;
                 } else {
                     return res;
@@ -99,9 +99,9 @@ where
                 self.index += 1;
 
                 let it = next_block.into_iter();
-                self.block_it.insert(Box::new(it));
+                let it = self.block_it.insert(Box::new(it));
 
-                let res = self.block_it.as_mut().expect("set early").next();
+                let res = it.next();
                 return res;
             }
         }
@@ -110,8 +110,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a dyn ReaderDiskTable<K, V>
 where
-    K: Field + FieldSize + Clone + Ord + PartialEq + Eq + PartialOrd,
-    V: Field + FieldSize + Clone,
+    K: Field + Clone + Ord,
+    V: Field + Clone,
 {
     type Item = UserEntry<K, V>;
     type IntoIter = ReaderDiskTableIterator<'a, K, V>;

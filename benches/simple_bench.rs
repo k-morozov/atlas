@@ -1,8 +1,8 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
-use std::{fs, io, thread};
+use std::{fs, thread};
 
 use log::info;
 use rand::Rng;
