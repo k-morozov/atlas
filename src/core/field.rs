@@ -6,16 +6,16 @@ pub struct FlexibleField {
 }
 
 impl FlexibleField {
-    pub fn new<T: Into<Vec<u8>>>(data: T) -> Self {
-        Self { data: data.into() }
-    }
-
     pub fn len(&self) -> usize {
         self.data.len()
     }
 }
 
 impl Field for FlexibleField {
+    fn new<T: Into<Vec<u8>>>(data: T) -> Self {
+        Self { data: data.into() }
+    }
+
     fn data(&self) -> &[u8] {
         &self.data
     }
@@ -31,6 +31,7 @@ impl FieldSize for FlexibleField {
 }
 
 pub trait Field {
+    fn new<T: Into<Vec<u8>>>(data: T) -> Self;
     fn data(&self) -> &[u8];
     fn mut_data(&mut self) -> &mut [u8];
 }

@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use super::disk_tables_shard::Levels;
 use super::id::DiskTableID;
+use super::local::block::data_block;
+use crate::core::entry::flexible_user_entry::FlexibleUserEntry;
 use crate::core::entry::user_entry::UserEntry;
+use crate::core::field::{Field, FieldSize, FlexibleField};
 use crate::errors::Result;
 
 pub type WriterDiskTablePtr<K, V> = Box<dyn WriterDiskTable<K, V>>;
@@ -17,6 +20,7 @@ pub trait Writer<K, V> {
 pub trait Reader<K, V> {
     fn read(&self, key: &K) -> Result<Option<V>>;
     fn read_entry_by_index(&self, index: u32) -> Result<Option<UserEntry<K, V>>>;
+    fn read_block(&self, index: usize) -> Option<data_block::DataBlock<K, V>>;
     fn count_entries(&self) -> u32;
 }
 
@@ -62,40 +66,61 @@ pub fn get_disk_table_name_by_level(disk_table_id: DiskTableID, level: Levels) -
 
 pub struct ReaderDiskTableIterator<'a, K, V> {
     disk_table: &'a dyn ReaderDiskTable<K, V>,
-    index: u32,
-    max_index: u32,
+    index: usize,
+    block_it: Option<Box<dyn Iterator<Item = UserEntry<K, V>> + 'a>>,
 }
 
-impl<'a, K, V> Iterator for ReaderDiskTableIterator<'a, K, V> {
+impl<'a, K, V> Iterator for ReaderDiskTableIterator<'a, K, V>
+where
+    K: Field + FieldSize + Clone + Ord + PartialEq + Eq + PartialOrd,
+    V: Field + FieldSize + Clone,
+{
     type Item = UserEntry<K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index == self.max_index {
-            return None;
-        }
-        match self.disk_table.read_entry_by_index(self.index) {
-            Ok(r) => {
-                self.index += 1;
-                return r;
+        match &mut self.block_it {
+            Some(p) => {
+                let res = self.block_it.as_mut().expect("set early").next();
+                if res.is_none() {
+                    let next_block = self.disk_table.read_block(self.index)?;
+                    self.index += 1;
+
+                    let it = next_block.into_iter();
+                    self.block_it.insert(Box::new(it));
+
+                    let res = self.block_it.as_mut().expect("set early").next();
+                    return res;
+                } else {
+                    return res;
+                }
             }
-            Err(e) => {
-                panic!("failed read iterator: {}", e)
+            None => {
+                let next_block = self.disk_table.read_block(self.index)?;
+                self.index += 1;
+
+                let it = next_block.into_iter();
+                self.block_it.insert(Box::new(it));
+
+                let res = self.block_it.as_mut().expect("set early").next();
+                return res;
             }
         }
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a dyn ReaderDiskTable<K, V> {
+impl<'a, K, V> IntoIterator for &'a dyn ReaderDiskTable<K, V>
+where
+    K: Field + FieldSize + Clone + Ord + PartialEq + Eq + PartialOrd,
+    V: Field + FieldSize + Clone,
+{
     type Item = UserEntry<K, V>;
     type IntoIter = ReaderDiskTableIterator<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let max_index = self.count_entries();
-
         ReaderDiskTableIterator {
             disk_table: self,
             index: 0,
-            max_index,
+            block_it: None,
         }
     }
 }

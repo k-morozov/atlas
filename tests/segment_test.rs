@@ -14,7 +14,7 @@ use kvs::core::{
         local::disk_table_builder::DiskTableBuilder,
     },
     entry::flexible_user_entry::FlexibleUserEntry,
-    field::FlexibleField,
+    field::{Field, FlexibleField},
     storage::{
         config::{StorageConfig, DEFAULT_TEST_TABLES_PATH},
         ordered_storage::OrderedStorage,

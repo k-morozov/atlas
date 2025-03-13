@@ -1,5 +1,5 @@
 use crate::core::field::{Field, FieldSize};
-use crate::core::marshal::{write_data, write_u32};
+use crate::core::marshal::{read_u32, write_data, write_u32};
 use crate::errors::Result;
 use crate::logicerr;
 
@@ -8,11 +8,35 @@ pub struct UserEntry<K, V>(K, V);
 
 impl<K, V> UserEntry<K, V>
 where
-    K: Field + FieldSize,
+    K: Field + FieldSize + PartialEq + Eq + PartialOrd,
     V: Field + FieldSize,
 {
     pub fn new(key: K, value: V) -> Self {
         UserEntry { 0: key, 1: value }
+    }
+
+    pub fn from(buffer: &[u8]) -> Self {
+        let mut offset = 0;
+        let key_len = read_u32(buffer).unwrap() as usize;
+        assert_ne!(key_len, 0);
+        offset += size_of::<u32>() as usize;
+
+        let value_len = read_u32(&buffer[offset..]).unwrap() as usize;
+        assert_ne!(value_len, 0);
+        offset += size_of::<u32>() as usize;
+
+        let mut k: Vec<u8> = vec![0u8; key_len];
+        write_data(&mut k, &buffer[offset..], key_len).unwrap();
+        offset += key_len;
+
+        let mut v = vec![0u8; value_len];
+        write_data(&mut v, &buffer[offset..], value_len).unwrap();
+        // offset += value_len;
+
+        UserEntry {
+            0: K::new(k),
+            1: V::new(v),
+        }
     }
 
     pub fn get_key(&self) -> &K {

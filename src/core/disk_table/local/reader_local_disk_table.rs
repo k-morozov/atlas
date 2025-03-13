@@ -4,8 +4,11 @@ use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use crate::common::memory::alloc_aligned;
 use crate::core::disk_table::local::block::{data_block, data_block_buffer, meta_block};
+use crate::core::field::Field;
 use crate::core::marshal::read_u32;
+use crate::core::storage::config::DEFAULT_DATA_BLOCK_ALIGN;
 use crate::core::{
     disk_table::disk_table, entry::flexible_user_entry::FlexibleUserEntry, field::FlexibleField,
 };
@@ -208,7 +211,7 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
             assert_ne!(offset.size, 0);
 
             // read row with entry
-            let mut buffer = vec![0u8; offset.size as usize];
+            let mut buffer = alloc_aligned(offset.size as usize, DEFAULT_DATA_BLOCK_ALIGN);
 
             let bytes = lock.borrow_mut().read(&mut buffer)?;
             assert_eq!(bytes, offset.size as usize);
@@ -234,6 +237,25 @@ impl disk_table::Reader<FlexibleField, FlexibleField> for ReaderFlexibleDiskTabl
             FlexibleField::new(key_buffer.to_vec()),
             FlexibleField::new(value_buffer.to_vec()),
         )));
+    }
+
+    fn read_block(
+        &self,
+        index: usize,
+    ) -> Option<data_block::DataBlock<FlexibleField, FlexibleField>> {
+        if self.index_blocks.len() >= index {
+            return None;
+        }
+
+        let index_block = self.index_blocks.get_by_index(index);
+
+        let block = data_block::DataBlock::new(
+            &mut self.fd.lock().unwrap().borrow_mut(),
+            index_block.block_offset,
+            index_block.block_size,
+        );
+
+        Some(block)
     }
 
     fn count_entries(&self) -> u32 {

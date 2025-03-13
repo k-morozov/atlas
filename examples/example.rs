@@ -6,7 +6,7 @@ use log::info;
 use rand::Rng;
 
 use kvs::core::entry::flexible_user_entry::FlexibleUserEntry;
-use kvs::core::field::FlexibleField;
+use kvs::core::field::{Field, FlexibleField};
 use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };

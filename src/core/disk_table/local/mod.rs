@@ -1,4 +1,4 @@
-mod block;
+pub mod block;
 mod file_handle;
 
 pub mod disk_table_builder;
