@@ -1,8 +1,11 @@
+use criterion::{criterion_group, criterion_main, Criterion};
+use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
+use tempfile::Builder;
+
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
-use std::{io, thread};
+use std::{fs, thread};
 
-use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 use log::info;
 use rand::Rng;
 
@@ -11,16 +14,8 @@ use kvs::core::field::{Field, FlexibleField};
 use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };
-use tempfile::Builder;
 
-const TOTAL_VALUE: usize = 100_000;
-
-pub fn init() {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
-}
+const TOTAL_VALUE: usize = 50_000;
 
 fn generate_random_bytes(start: u32, finish: u32) -> Vec<u8> {
     let bytes = rand::rng().random_range(start..=finish);
@@ -39,9 +34,7 @@ fn random_entry() -> FlexibleUserEntry {
     FlexibleUserEntry::new(key, value)
 }
 
-fn main() -> io::Result<()> {
-    init();
-
+fn example_table() {
     info!("Prepare dir for example");
 
     let tmp_dir = Builder::new()
@@ -117,6 +110,18 @@ fn main() -> io::Result<()> {
             }
         }
     });
-
-    Ok(())
 }
+
+pub fn criterion_benchmark(c: &mut Criterion) {
+    let mut group = c.benchmark_group("simple-run");
+    // group.measurement_time(Duration::new(90, 0));
+    group.warm_up_time(Duration::new(10, 0));
+    group.measurement_time(Duration::new(90, 0));
+    group.sample_size(20);
+
+    group.bench_function("my benchmark", |b| b.iter(|| example_table()));
+    group.finish();
+}
+
+criterion_group!(benches, criterion_benchmark);
+criterion_main!(benches);

@@ -10,12 +10,16 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
 
     steps:
+      
     - uses: actions/checkout@v4
+    - name: Show rustc version and platform
+      run: |
+        rustc --version --verbose
     - name: Style
       run: cargo fmt
     - name: Build
@@ -32,7 +36,7 @@ jobs:
     - name: Style
       run: cargo fmt
     - name: Build example
-      run: cargo build --example example
+      run: cargo build --example example -r
     - name: Run example
       run: |
         sudo apt-get update
@@ -40,23 +44,12 @@ jobs:
         strace -c -S calls -o output.txt cargo run --example example
         cat output.txt
 
-    # - name: Upload strace output as artifact
-    #   uses: actions/upload-artifact@v3
-    #   with:
-    #     name: output
-    #     path: output.txt
+  bench:
 
-  # miri:
-  #   name: "Miri"
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Install Miri
-  #       run: |
-  #         rustup toolchain install nightly --component miri
-  #         rustup override set nightly
-  #         cargo miri setup
-  #     - name: Test with Miri
-  #       run: cargo miri test
-  #     - name: Example with Miri
-  #       run: cargo run --example example
+    runs-on: ubuntu-latest
+      
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run bench
+        run: cargo bench

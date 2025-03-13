@@ -1,12 +1,10 @@
-use std::os::fd::RawFd;
-
 use crate::core::{
+    disk_table::local::file_handle::ReadSeek,
     field::{Field, FlexibleField},
     marshal::{read_u32, write_u32},
     storage::config,
 };
 
-use crate::core::disk_table::local::writer_local_disk_table::WriterFlexibleDiskTablePtr;
 use crate::errors::Result;
 
 use super::block;
@@ -31,17 +29,16 @@ pub struct Offset {
     pub size: u32,
 }
 
-pub fn metadata_index_blocks(base: i64, fd: RawFd) -> (i64, u32) {
-    nix::unistd::lseek(
-        fd,
+// todo result
+pub fn metadata_index_blocks(base: i64, fd: &mut Box<dyn ReadSeek>) -> (i64, u32) {
+    fd.seek(std::io::SeekFrom::End(
         -(base + INDEX_BLOCKS_COUNT_SIZE as i64),
-        nix::unistd::Whence::SeekEnd,
-    )
+    ))
     .unwrap();
 
     let mut buffer = [0u8; INDEX_BLOCKS_COUNT_SIZE];
 
-    let Ok(bytes) = nix::unistd::read(fd, &mut buffer) else {
+    let Ok(bytes) = fd.read(&mut buffer) else {
         panic!("Failed read count index blocks from disk")
     };
     assert_eq!(bytes, INDEX_BLOCKS_COUNT_SIZE);
@@ -49,15 +46,13 @@ pub fn metadata_index_blocks(base: i64, fd: RawFd) -> (i64, u32) {
     let count_blocks = u32::from_le_bytes(buffer);
 
     // read count
-    nix::unistd::lseek(
-        fd,
+    fd.seek(std::io::SeekFrom::End(
         -(base + INDEX_BLOCKS_COUNT_SIZE as i64 + INDEX_BLOCKS_BASE as i64),
-        nix::unistd::Whence::SeekEnd,
-    )
+    ))
     .unwrap();
 
     let mut buffer = [0u8; INDEX_BLOCKS_BASE];
-    let Ok(bytes) = nix::unistd::read(fd, &mut buffer) else {
+    let Ok(bytes) = fd.read(&mut buffer) else {
         panic!("Failed read size of index blocks from disk")
     };
     assert_eq!(bytes, INDEX_BLOCKS_BASE);
@@ -110,7 +105,7 @@ impl IndexBlocks {
 }
 
 impl block::WriteToTable for IndexBlocks {
-    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+    fn write_to(&self, ptr: &mut Box<dyn std::io::Write>) -> Result<()> {
         assert_ne!(0, self.data.len());
 
         for index_block in &self.data {
@@ -133,10 +128,10 @@ pub struct IndexBlock {
 
 impl IndexBlock {
     // @todo depends on seek position
-    pub fn from(fd: RawFd) -> Result<Self> {
+    pub fn from(fd: &mut Box<dyn ReadSeek>) -> Result<Self> {
         let mut buffer = [0u8; INDEX_BLOCKS_OFFSET_SIZE];
 
-        let bytes = nix::unistd::read(fd, &mut buffer)?;
+        let bytes = fd.read(&mut buffer)?;
 
         assert_eq!(bytes, INDEX_BLOCKS_OFFSET_SIZE);
 
@@ -146,8 +141,7 @@ impl IndexBlock {
 
         let mut buffer = vec![0u8; key_size as usize];
 
-        let bytes = nix::unistd::read(fd, &mut buffer)?;
-        // let bytes = fd.read(&mut buffer)?;
+        let bytes = fd.read(&mut buffer)?;
         assert_eq!(bytes, key_size as usize);
 
         let first_key = FlexibleField::new(buffer);
@@ -168,7 +162,7 @@ impl IndexBlock {
 }
 
 impl block::WriteToTable for IndexBlock {
-    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+    fn write_to(&self, ptr: &mut Box<dyn std::io::Write>) -> Result<()> {
         let mut tmp = [0; INDEX_BLOCKS_OFFSET_SIZE];
 
         write_u32(&mut tmp[0..INDEX_BLOCK_OFFSET], self.block_offset)?;

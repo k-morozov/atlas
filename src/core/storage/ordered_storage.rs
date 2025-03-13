@@ -16,8 +16,7 @@ use crate::{
             disk_table::{get_disk_table_name, get_disk_table_name_by_level, get_disk_table_path},
             disk_tables_shard::{self, DiskTablesShards},
             local::{
-                local_disk_table_builder::DiskTableBuilder,
-                reader_local_disk_table::ReaderDiskTablePtr,
+                disk_table_builder::DiskTableBuilder, reader_local_disk_table::ReaderDiskTablePtr,
             },
             utils,
         },
@@ -148,13 +147,14 @@ impl OrderedStorage {
         }
 
         let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
-        let disk_table_name = get_disk_table_name(disk_table_id);
-        let disk_table_path = get_disk_table_path(storage_path.as_path(), &disk_table_name);
+        let (disk_table_name, index_table_name) = get_disk_table_name(disk_table_id);
+        let (disk_table_path, index_table_path) =
+            get_disk_table_path(storage_path.as_path(), &disk_table_name, &index_table_name);
 
         let disk_table_from_mem_table = lock
             .into_iter()
             .fold(
-                DiskTableBuilder::new(disk_table_path.as_path()),
+                DiskTableBuilder::new(disk_table_path.as_path(), index_table_path.as_path()),
                 |mut builder, entry| {
                     builder.append_entry(entry);
                     builder
@@ -236,10 +236,16 @@ impl OrderedStorage {
         };
 
         let disk_table_id = metadata.lock().unwrap().get_new_disk_table_id();
-        let segment_name = get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
-        let disk_table_path = get_disk_table_path(storage_path, &segment_name);
+        let (disk_table_name, index_table_name) =
+            get_disk_table_name_by_level(disk_table_id, level_for_new_sg);
+        let (disk_table_path, index_table_path) =
+            get_disk_table_path(storage_path, &disk_table_name, &index_table_name);
 
-        let merged_disk_table = shards.merge_level(merging_level, disk_table_path.as_path());
+        let merged_disk_table = shards.merge_level(
+            merging_level,
+            disk_table_path.as_path(),
+            index_table_path.as_path(),
+        );
 
         Some(merged_disk_table)
     }

@@ -1,10 +1,11 @@
 use std::cell::RefCell;
 
 use super::block;
-use crate::core::disk_table::local::writer_local_disk_table::WriterFlexibleDiskTablePtr;
+use crate::common::memory::alloc_aligned;
 use crate::core::{
-    entry::flexible_user_entry::FlexibleUserEntry, marshal::write_u32,
-    storage::config::DEFAULT_DATA_BLOCK_SIZE,
+    entry::flexible_user_entry::FlexibleUserEntry,
+    marshal::write_u32,
+    storage::config::{DEFAULT_DATA_BLOCK_ALIGN, DEFAULT_DATA_BLOCK_SIZE},
 };
 use crate::errors::Result;
 
@@ -66,9 +67,11 @@ pub struct DataBlockBuffer {
 
 impl DataBlockBuffer {
     pub fn new() -> Self {
+        let buffer = alloc_aligned(DEFAULT_DATA_BLOCK_SIZE, DEFAULT_DATA_BLOCK_ALIGN);
+
         Self {
             // @todo change
-            block_data: RefCell::new(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]),
+            block_data: RefCell::new(buffer),
             max_size: DEFAULT_DATA_BLOCK_SIZE,
             current_pos: 0,
             meta: Metadata::new(),
@@ -108,19 +111,16 @@ impl DataBlockBuffer {
     }
 
     pub fn reset(&mut self) {
-        let mut old = self
-            .block_data
-            .replace(vec![0u8; DEFAULT_DATA_BLOCK_SIZE as usize]);
-        old.clear();
+        let mut data = self.block_data.borrow_mut();
 
+        data.fill(0);
         self.current_pos = 0;
-
         self.meta.reset();
     }
 }
 
 impl block::WriteToTable for DataBlockBuffer {
-    fn write_to(&self, ptr: &mut WriterFlexibleDiskTablePtr) -> Result<()> {
+    fn write_to(&self, ptr: &mut Box<dyn std::io::Write>) -> Result<()> {
         let offset = self.max_size - self.meta.size();
 
         let mut dst = self.block_data.borrow_mut();

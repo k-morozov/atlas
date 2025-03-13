@@ -1,23 +1,31 @@
-use crate::core::{
-    entry::flexible_user_entry::FlexibleUserEntry, field::FlexibleField, marshal::read_u32,
+use crate::{
+    common::memory::alloc_aligned,
+    core::{
+        disk_table::local::file_handle::ReadSeek,
+        entry::user_entry,
+        field::Field,
+        marshal::read_u32,
+        storage::config::{DEFAULT_DATA_BLOCK_ALIGN, DEFAULT_DATA_BLOCK_SIZE},
+    },
 };
-use std::{
-    fs,
-    io::{Read, Seek, SeekFrom},
-};
+use std::io::{Read, Seek, SeekFrom};
 
-pub struct DataBlock {
+pub struct DataBlock<K, V> {
     _index_entries: Vec<u32>,
-    data: Vec<FlexibleUserEntry>,
+    data: Vec<user_entry::UserEntry<K, V>>,
 }
 
-impl DataBlock {
-    pub fn new(fd: &mut i32, block_offset: u32, block_size: u32) -> Self {
-        nix::unistd::lseek(*fd, block_offset as i64, nix::unistd::Whence::SeekSet).unwrap();
-        // let _base = fd.seek(SeekFrom::Start(block_offset as u64));
+impl<'a, K, V> DataBlock<K, V>
+where
+    K: Field + Ord + PartialEq + Eq + PartialOrd + Clone,
+    V: Field + Clone,
+{
+    pub fn new(fd: &mut Box<dyn ReadSeek>, block_offset: u32, block_size: u32) -> Self {
+        let _base = fd.seek(SeekFrom::Start(block_offset as u64));
 
-        let mut buffer = vec![0u8; block_size as usize];
-        let Ok(bytes) = nix::unistd::read(*fd, &mut buffer) else {
+        let mut buffer = alloc_aligned(DEFAULT_DATA_BLOCK_SIZE, DEFAULT_DATA_BLOCK_ALIGN);
+
+        let Ok(bytes) = fd.read(&mut buffer) else {
             panic!("Failed read from disk")
         };
 
@@ -43,11 +51,11 @@ impl DataBlock {
             index_entries.push(index);
         }
 
-        let mut data = Vec::<FlexibleUserEntry>::with_capacity(count_entries as usize);
+        let mut data = Vec::<user_entry::UserEntry<K, V>>::with_capacity(count_entries as usize);
 
         for offset in &index_entries {
             let b = buffer.as_slice();
-            data.push(FlexibleUserEntry::from(&b[*offset as usize..]));
+            data.push(user_entry::UserEntry::from(&b[*offset as usize..]));
         }
 
         Self {
@@ -56,7 +64,7 @@ impl DataBlock {
         }
     }
 
-    pub fn get_by_key(&self, key: &FlexibleField) -> Option<FlexibleField> {
+    pub fn get_by_key(&self, key: &K) -> Option<V> {
         let idx = self
             .data
             .binary_search_by(|entry| entry.get_key().cmp(key))
@@ -65,11 +73,11 @@ impl DataBlock {
         Some(self.data[idx].get_value().clone())
     }
 
-    pub fn get_by_index(&self, index: usize) -> &FlexibleUserEntry {
+    pub fn get_by_index(&self, index: usize) -> &user_entry::UserEntry<K, V> {
         &self.data[index]
     }
 
-    pub fn into_iter(&self) -> impl Iterator<Item = &FlexibleUserEntry> {
+    pub fn into_iter(self) -> impl Iterator<Item = user_entry::UserEntry<K, V>> {
         DataBlockIterator {
             block: self,
             pos: 0,
@@ -77,21 +85,27 @@ impl DataBlock {
     }
 }
 
-struct DataBlockIterator<'a> {
-    block: &'a DataBlock,
+pub struct DataBlockIterator<K, V> {
+    block: DataBlock<K, V>,
     pos: usize,
 }
 
-impl<'a> Iterator for DataBlockIterator<'a> {
-    type Item = &'a FlexibleUserEntry;
+impl<'a, K, V> Iterator for DataBlockIterator<K, V>
+where
+    K: Field + Ord + PartialEq + Eq + PartialOrd + Clone,
+    V: Field + Clone,
+{
+    type Item = user_entry::UserEntry<K, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.block._index_entries.len() {
             return None;
         }
-        Some(
-            self.block
-                .get_by_index(self.block._index_entries[self.pos] as usize),
-        )
+
+        let r = self
+            .block
+            .get_by_index(self.block._index_entries[self.pos] as usize);
+
+        Some(r.clone())
     }
 }

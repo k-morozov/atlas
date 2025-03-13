@@ -10,7 +10,7 @@ use crate::errors::Result;
 
 use crate::core::{
     disk_table::{
-        disk_table::ReaderDiskTableIterator, local::local_disk_table_builder::DiskTableBuilder,
+        disk_table::ReaderDiskTableIterator, local::disk_table_builder::DiskTableBuilder,
         local::reader_local_disk_table::ReaderDiskTablePtr, shard_level::ShardLevel,
     },
     field::FlexibleField,
@@ -101,6 +101,7 @@ impl DiskTablesShards {
         &self,
         level: Levels,
         disk_table_path: &Path,
+        index_table_path: &Path,
     ) -> Arc<dyn ReaderDiskTable<FlexibleField, FlexibleField>> {
         let lock = self.shards.read().unwrap();
 
@@ -117,7 +118,7 @@ impl DiskTablesShards {
             .collect::<Vec<ReaderDiskTableIterator<FlexibleField, FlexibleField>>>();
 
         let mut entries = its.iter_mut().map(|it| it.next()).collect::<Vec<_>>();
-        let mut builder = DiskTableBuilder::new(disk_table_path);
+        let mut builder = DiskTableBuilder::new(disk_table_path, index_table_path);
 
         while entries.iter().any(|v| v.is_some()) {
             let (index, entry) = entries
