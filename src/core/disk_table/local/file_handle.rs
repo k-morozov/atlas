@@ -74,11 +74,6 @@ impl FileHandle {
             nix::sys::stat::Mode::empty(),
         )?;
 
-        // #[cfg(target_os = "linux")]
-        // {
-        //     fcntl::posix_fadvise(fd, 0, 0, fcntl::PosixFadviseAdvice::POSIX_FADV_RANDOM)?;
-        // }
-
         let disk_table_path = disk_table_path.as_ref().to_path_buf();
 
         // @todo remove
@@ -162,7 +157,7 @@ impl std::io::Seek for FileHandle {
 
 impl Drop for FileHandle {
     fn drop(&mut self) {
-        self.flush().expect("Doesn't expect the problem with sync");
+        // self.flush().expect("Doesn't expect the problem with sync");
         if let Err(er) = nix::unistd::close(self.fd) {
             panic!("Problem with closing file handle. {}", er)
         }

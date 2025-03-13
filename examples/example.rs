@@ -1,6 +1,6 @@
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
-use std::{fs, io, thread};
+use std::{io, thread};
 
 use kvs::core::storage::config::DEFAULT_TEST_TABLES_PATH;
 use log::info;
