@@ -66,7 +66,7 @@ fn test_simple_merge() -> io::Result<()> {
     let index_table_path = tmp_dir.path().join("segment_1_1.idx");
 
     let mut builder = DiskTableBuilder::new(disk_table_path, index_table_path);
-    let value_len = 256;
+    let value_len = 4000;
 
     for i in 0..16u32 {
         let k = i as u32;
