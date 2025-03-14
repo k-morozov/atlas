@@ -15,7 +15,7 @@ use kvs::core::storage::{
     config::StorageConfig, ordered_storage::OrderedStorage, storage::Storage,
 };
 
-const TOTAL_VALUE: usize = 50_000;
+const TOTAL_VALUE: usize = 100_000;
 
 fn generate_random_bytes(start: u32, finish: u32) -> Vec<u8> {
     let bytes = rand::rng().random_range(start..=finish);
