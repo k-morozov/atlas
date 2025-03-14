@@ -102,9 +102,12 @@ where
             return None;
         }
 
-        let r = self
-            .block
-            .get_by_index(self.block._index_entries[self.pos] as usize);
+        // let r = self
+        //     .block
+        //     .get_by_index(self.block._index_entries[self.pos] as usize);
+
+        let r = self.block.get_by_index(self.pos);
+        self.pos += 1;
 
         Some(r.clone())
     }

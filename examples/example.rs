@@ -50,7 +50,7 @@ fn main() -> io::Result<()> {
         .unwrap();
     let storage_path = tmp_dir.path().join("example_table");
 
-    info!("Start example");
+    info!("Start example: path={:?}", storage_path.as_path());
 
     let mut config = StorageConfig::default_config();
     config.mem_table_size = 256;

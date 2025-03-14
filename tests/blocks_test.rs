@@ -9,7 +9,7 @@ use kvs::core::{
 use tempfile::Builder;
 
 #[test]
-fn test_data_blocks() -> io::Result<()> {
+fn test_read_data_blocks_by_index() -> io::Result<()> {
     let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
 
     let disk_table_path = tmp_dir.path().join("segment_001.bin");
@@ -42,6 +42,47 @@ fn test_data_blocks() -> io::Result<()> {
 
         assert_eq!(result, expected);
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_read_data_blocks_by_iter() -> io::Result<()> {
+    let tmp_dir = Builder::new().prefix(DEFAULT_TEST_TABLES_PATH).tempdir()?;
+
+    let disk_table_path = tmp_dir.path().join("segment_001.bin");
+    let index_table_path = tmp_dir.path().join("segment_001.idx");
+
+    let mut builder = DiskTableBuilder::new(disk_table_path, index_table_path);
+    let value_len = 10;
+
+    for i in 0..16u32 {
+        let k = i as u32;
+        let v = vec![i as u8; value_len];
+
+        builder.append_entry(&FlexibleUserEntry::new(
+            FlexibleField::new(k.to_be_bytes()),
+            FlexibleField::new(v),
+        ));
+    }
+
+    let reader = builder.build().unwrap();
+
+    let mut base = 0..16u32;
+
+    for entry in reader.into_iter() {
+        let index = base.next();
+        assert!(index.is_some());
+        let index = index.unwrap();
+
+        let expected = FlexibleUserEntry::new(
+            FlexibleField::new(index.to_be_bytes()),
+            FlexibleField::new(vec![index as u8; value_len]),
+        );
+
+        assert_eq!(entry, expected, "by index {}", index);
+    }
+    assert!(base.is_empty());
 
     Ok(())
 }
