@@ -68,13 +68,7 @@ fn test_read_data_blocks_by_iter() -> io::Result<()> {
 
     let reader = builder.build().unwrap();
 
-    let mut base = 0..16u32;
-
-    for entry in reader.into_iter() {
-        let index = base.next();
-        assert!(index.is_some());
-        let index = index.unwrap();
-
+    for (entry, index) in reader.into_iter().zip(0..16u32) {
         let expected = FlexibleUserEntry::new(
             FlexibleField::new(index.to_be_bytes()),
             FlexibleField::new(vec![index as u8; value_len]),
@@ -82,7 +76,6 @@ fn test_read_data_blocks_by_iter() -> io::Result<()> {
 
         assert_eq!(entry, expected, "by index {}", index);
     }
-    assert!(base.is_empty());
 
     Ok(())
 }
