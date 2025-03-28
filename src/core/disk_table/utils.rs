@@ -63,6 +63,8 @@ pub fn get_disk_tables(storage_path: &Path) -> Result<DiskTablesShards> {
             };
             result
         })
+        // Sorting in shard level for every push isn't good idea. However, it is very fast implemention.
+        // Assume here we could accumalate all disk tables for sorting.
         .fold(DiskTablesShards::new(), |table, res| {
             if let Some((level, reader_disk_table)) = res {
                 table.put_disk_table_by_level(level, reader_disk_table);

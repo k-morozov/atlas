@@ -82,12 +82,12 @@ fn test_override_entry() -> io::Result<()> {
     let table_name = "/tmp/kvs/test/test_override_entry";
     let config = StorageConfig::default_config();
 
-    let key = FlexibleField::new([1,1,1,1]);
+    let key = FlexibleField::new([1, 1, 1, 1]);
 
-    let value = FlexibleField::new([2,2,2,2]);
+    let value = FlexibleField::new([2, 2, 2, 2]);
     let entry1 = FlexibleUserEntry::new(key.clone(), value);
 
-    let value = FlexibleField::new([4,4,4,4]);
+    let value = FlexibleField::new([4, 4, 4, 4]);
     let entry2 = FlexibleUserEntry::new(key.clone(), value);
 
     {

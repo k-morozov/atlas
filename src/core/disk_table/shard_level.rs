@@ -20,6 +20,9 @@ impl ShardLevel {
     pub fn push(&self, reader: ReaderDiskTablePtr) {
         let mut lock = self.disk_tables.write().unwrap();
         lock.push(reader);
+
+        // @todo sort at once
+        lock.sort_by(|l, r| l.get_name().cmp(r.get_name()));
     }
 
     pub fn get(&self, index: usize) -> ReaderDiskTablePtr {

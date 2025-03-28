@@ -25,6 +25,7 @@ pub trait Reader<K, V> {
 
 // @todo
 pub trait DiskTable<K, V> {
+    fn get_name(&self) -> &str;
     fn get_path(&self) -> &Path;
     fn remove(&self) -> Result<()>;
 }
