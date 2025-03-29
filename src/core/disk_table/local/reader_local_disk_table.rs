@@ -81,6 +81,7 @@ impl ReaderFlexibleDiskTable {
         }))
     }
 
+    #[deprecated]
     fn read_index_entries(
         fd: &mut Box<dyn ReadSeek>,
         count_entries: u32,
@@ -132,6 +133,14 @@ impl ReaderFlexibleDiskTable {
 impl disk_table::ReaderDiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskTable {}
 
 impl disk_table::DiskTable<FlexibleField, FlexibleField> for ReaderFlexibleDiskTable {
+    fn get_name(&self) -> &str {
+        self.disk_table_path
+            .file_name()
+            .expect("data file exists")
+            .to_str()
+            .expect("valid")
+    }
+
     fn get_path(&self) -> &Path {
         self.disk_table_path.as_path()
     }

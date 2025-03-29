@@ -10,7 +10,7 @@ pub(super) struct ShardLevel {
     pub disk_tables: Arc<RwLock<ReaderDiskTables>>,
 }
 
-impl ShardLevel {
+impl<'a> ShardLevel {
     pub fn new() -> Self {
         Self {
             disk_tables: Arc::new(RwLock::new(Vec::new())),
@@ -20,6 +20,9 @@ impl ShardLevel {
     pub fn push(&self, reader: ReaderDiskTablePtr) {
         let mut lock = self.disk_tables.write().unwrap();
         lock.push(reader);
+
+        // @todo sort at once
+        lock.sort_by(|l, r| r.get_name().cmp(l.get_name()));
     }
 
     pub fn get(&self, index: usize) -> ReaderDiskTablePtr {
@@ -45,7 +48,7 @@ impl ShardLevel {
         lock.len()
     }
 
-    pub fn iter(&self) -> ShardLevelIterator {
+    pub fn iter(&'a self) -> impl Iterator<Item = ReaderDiskTablePtr> + 'a {
         ShardLevelIterator {
             shard: self,
             pos: 0,

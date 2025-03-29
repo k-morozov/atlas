@@ -156,7 +156,7 @@ impl DiskTablesShards {
             return false;
         }
 
-        lock[&level].len() == config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL
+        lock[&level].len() >= config::DEFAULT_DISK_TABLES_LIMIT_BY_LEVEL
     }
 
     // workaround
